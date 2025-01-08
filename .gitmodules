@@ -1,0 +1,4 @@
+[submodule "ReWings"]
+	path = src/lib/ReWings
+	url = git@github.com:ragavpr/ReWings.git
+	branch = main

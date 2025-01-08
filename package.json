@@ -32,6 +32,7 @@
 		"@sveltejs/adapter-auto": "^3.0.0",
 		"@sveltejs/kit": "^2.0.0",
 		"@sveltejs/vite-plugin-svelte": "^4.0.0",
+		"@types/lodash": "^4.17.14",
 		"autoprefixer": "^10.4.20",
 		"drizzle-kit": "^0.22.0",
 		"eslint": "^9.7.0",
@@ -59,7 +60,10 @@
 		"@tailwindcss/container-queries": "^0.1.1",
 		"@tailwindcss/forms": "^0.5.9",
 		"@tailwindcss/typography": "^0.5.15",
+		"binary-parser": "^2.2.1",
+		"buffer": "^6.0.3",
 		"drizzle-orm": "^0.33.0",
+		"lodash": "^4.17.21",
 		"postgres": "^3.4.4"
 	}
 }
