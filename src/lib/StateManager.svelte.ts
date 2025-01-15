@@ -16,6 +16,16 @@ export class GameState {
 
 	#debug_messages: any[] = [];
 
+	// line_pointers: Record<number, number> = $state({})
+	line_pointers: {
+		time: number;
+		pt: number;
+		len: number;
+		dir: number;
+		type: number;
+		info: string;
+	}[] = [];
+
 	keyframe_mean?: number;
 	keyframe_sd?: number;
 
@@ -41,6 +51,15 @@ export class GameState {
 		while (pt < this.data.length) {
 			const dir = this.data.readUInt8(pt + 4);
 			const type = this.data.readUint8(pt + 7);
+			// this.line_pointers[this.data.readUInt32BE(pt)] = pt
+			this.line_pointers.push({
+				time: this.data.readUInt32BE(pt),
+				pt,
+				len: this.data.readUInt16BE(pt + 5) + 7,
+				dir,
+				type,
+				info: msg_type[dir][type]
+			});
 			if (dir == 0 && type == 0xa9) {
 				if (s_time === undefined) s_time = this.data.readUInt32BE(pt);
 				else s_time += 1092.0401854714064;
@@ -144,7 +163,6 @@ export class GameState {
 			console.warn('No checksum present');
 			return;
 		}
-		console.log('Verifying integrity', this.integritous);
 		this.integritous =
 			this.checksum.compare(
 				browser
@@ -159,7 +177,6 @@ export class GameState {
 							.update(this.data.subarray(0, this.data.byteLength - 40))
 							.digest()
 			) == 0;
-		console.log('Verifying integrity', this.integritous);
 	}
 }
 
@@ -224,9 +241,11 @@ export function fileCalcDistribution(data: Buffer) {
 	if (offset != size) {
 		console.error('EOF not reached correctly', offset, size);
 	}
-	console.log(distribution);
+	// console.log(distribution);
+	return distribution;
 }
 
+// Parses only the mentioned line
 export function fileParseFindLine(data: Buffer, line: number) {
 	const size = data.byteLength;
 	let offset = 0;
@@ -253,6 +272,7 @@ export function fileParseFindLine(data: Buffer, line: number) {
 	}
 }
 
+// Reads all lines until the one type, prints and stops
 export function fileParseAll(data: Buffer, print_type?: number, limit: number = 100) {
 	const size = data.byteLength;
 	let offset = 0;

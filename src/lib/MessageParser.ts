@@ -46,6 +46,7 @@ export class MessageParser {
 					.saveOffset('DEL_final_offset')
 					.parse(buffer);
 				delete result.DEL__length;
+				result.timestamp_start = result.timestamp_start.toString();
 				break;
 			case 0x42:
 				result = parser
@@ -80,6 +81,7 @@ export class MessageParser {
 				break;
 			case 0x49:
 				result = parser.uint64('timestamp_stop').saveOffset('DEL_final_offset').parse(buffer);
+				result.timestamp_stop = result.timestamp_stop.toString();
 				break;
 			case 0x40:
 				result = parser
