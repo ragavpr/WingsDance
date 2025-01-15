@@ -1,14 +1,23 @@
 <script lang="ts">
-	import { GameState } from '$lib/StateManager.svelte';
+	import { GameState, parseMessage, fileCalcDistribution } from '$lib/StateManager.svelte';
 	import { Buffer } from 'buffer';
-
-	let isOpen = false;
+	import { JSONEditor, type Content } from 'svelte-jsoneditor';
 
 	let files: FileList | undefined = $state();
 
 	let file: Buffer | undefined = $state();
 
+	//TODO: example data -> remove it
 	let gs: GameState | undefined = $state();
+
+	let content_list: Content = $state({json:undefined});
+	let content_msg: Content = $state({json:undefined});
+
+	let editor: JSONEditor;
+
+	$effect(() => {
+		content_list = { json: gs?.line_pointers };
+	});
 
 	$effect(() => {
 		if (files && files.length > 0) {
@@ -29,43 +38,118 @@
 		files = undefined;
 		file = undefined;
 		console.log('File closed');
+		content_msg = { json: undefined };
+		content_list = { json: undefined };
 	}
 
 	async function process() {
 		gs = new GameState(file!);
 		await gs.verify_integrity();
-		console.log(gs.integritous);
+		// console.log(gs.line_pointers.splice(0,20))
+	}
+
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	async function test_call(...args: any[]) {
+		console.log(args);
+
+		// console.log(])
+	}
+
+	async function count_messages() {
+		const a = fileCalcDistribution(file!);
+		const result: Record<string, string|number>[] = [];
+		Object.keys(a).forEach((m: number) => {
+			Object.keys(a[m]).forEach((i: number) => {
+				result.push({
+					id: `${m}-${i}`,
+					count: a[m][i].count,
+					info: a[m][i].info
+				});
+			});
+		});
+		content_list = {json: result};
+	}
+
+	async function view_msg(view_index: number) {
+		content_msg.json = parseMessage(file!, content_list.json[view_index].pt);
+		await editor.update(content_msg);
+		// delay(editor.expand, 0, [], () => true)
+		await editor.expand([], (relativePath) => relativePath.length < 2);
 	}
 </script>
 
-<div>
-	<p>
-		File Integrity: {gs?.integritous}
-	</p>
+<div class="wrapper">
+	<nav>
+		<button class="file-input-wrapper" onclick={closeFile}>
+			{#if file}
+				Close
+			{:else}
+				<input bind:files type="file" accept=".wdcap" /> Select File
+			{/if}
+		</button>
+		<button class="hmm" onclick={process}> Process GS </button>
+		<button class="hmm" onclick={count_messages}> Calc Distribution </button>
+	</nav>
+	<div id="messages">
+		<div class="my-json-editor jse-theme-dark">
+			<JSONEditor
+				bind:content={content_list}
+				mode="table"
+				onSelect={(sel: any) => view_msg(sel.path[0])}
+			/>
+		</div>
+		<div
+			class="my-json-editor jse-theme-dark"
+			style={`--display: ${content_msg.json ? 'block' : 'none'}`}
+		>
+			<JSONEditor bind:this={editor} bind:content={content_msg} />
+		</div>
+	</div>
 </div>
 
-<nav>
-	<button class="file-input-wrapper" onclick={closeFile}>
-		{#if file}
-			Close
-		{:else}
-			<input bind:files type="file" accept=".wdcap" /> Select File
-		{/if}
-	</button>
-	<button class="hmm" onclick={process}> Act0 </button>
-</nav>
-
 <style type="scss">
-	#game-wrapper {
-		position: absolute;
-		top: 0;
-		left: 0;
+	@import 'svelte-jsoneditor/themes/jse-theme-dark.css';
+	.wrapper {
 		width: 100%;
 		height: 100%;
 	}
+
+	#messages {
+		display: flex;
+		flex-direction: row;
+		height: calc(100% - 42px);
+		& > div {
+			flex: 1;
+		}
+	}
+
+	@media (max-width: 768px) {
+		#messages {
+			flex-direction: column;
+			& > div {
+				height: 50%;
+			}
+		}
+	}
+
+	.msg_row {
+		display: flex;
+		flex-direction: row;
+		background-color: var(--color);
+		border-radius: 5px;
+		& > div {
+			padding: 10px; /* Adds some padding for readability */
+			text-align: right; /* Centers the text in each column */
+
+			&:nth-child(2) {
+				flex: 1;
+				text-align: left; /* Left aligns the first column */
+			}
+		}
+	}
+
 	.file-input-wrapper {
 		display: inline-block;
-		position: relative;
 		overflow: hidden;
 		border-radius: 4px;
 		background-color: #444444;
@@ -87,11 +171,9 @@
 		}
 	}
 	nav {
-		position: absolute;
+		height: 42px;
 		z-index: 1000000;
 		background-color: #44444488;
 		color: white;
-		bottom: 0;
-		padding: 0.5rem;
 	}
 </style>
