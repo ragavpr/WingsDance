@@ -14,7 +14,8 @@ export class TimeLine {
 	target_scale: number = $state(10);
 	// velocity_scale: number = $state(0);
 
-	image!: ImageData;
+	image!: ImageData = $state(new ImageData(1, 1));
+	image_scale = 1;
 	#image_element!: ImageBitmap;
 
 	#is_held: boolean = false;
@@ -33,6 +34,7 @@ export class TimeLine {
 				this.target_position +
 				this.scale +
 				this.target_scale;
+			if (this.image);
 			this.frame_request_stub &&= cancelAnimationFrame(this.frame_request_stub);
 			this.frame_request_stub = requestAnimationFrame(this.fixed_update.bind(this));
 		});
@@ -47,16 +49,18 @@ export class TimeLine {
 		});
 
 		// this.image = new ImageData(1, 1);
-		this.image = new ImageData(300, 1);
-		const data = new Uint32Array(this.image.data.buffer);
+		const image = new ImageData(300, 1);
+		const data = new Uint32Array(image.data.buffer);
 
 		// Little Endian
-		data[0] = 0xffffffff; // red
+		data[0] = 0xff0000ff; // red
 		data[1] = 0xff00ff00; // green
 		data[2] = 0xffff0000; // blue
 		for (let i = 3; i < 300; i += 3) {
 			data.copyWithin(i, 0, 3);
 		}
+
+		this.image = image;
 	}
 
 	fixed_update() {
@@ -68,8 +72,8 @@ export class TimeLine {
 		if (this.target_position < 0) {
 			this.target_position = 0;
 			this.velocity_position = 0;
-		} else if (this.target_position > this.image.width) {
-			this.target_position = this.image.width;
+		} else if (this.target_position > this.image.width * this.image_scale) {
+			this.target_position = this.image.width * this.image_scale;
 			this.velocity_position = 0;
 		}
 
@@ -151,13 +155,19 @@ export class TimeLine {
 			const currentTouchDistance = this.getTouchDistance(event.touches);
 			const deltaDistance = currentTouchDistance - this.#last_touch_distance;
 			this.target_scale += deltaDistance / this.scale;
-			this.target_scale = Math.max(1, Math.min(this.target_scale, 20)); // Limit the scale
+			this.target_scale = Math.max(
+				1 / this.image_scale,
+				Math.min(this.target_scale, 20 / this.image_scale)
+			); // Limit the scale
 			this.#last_touch_distance = currentTouchDistance;
 		}
 	}
 
 	handleScroll(event: WheelEvent) {
-		this.target_scale = Math.max(1, Math.min(this.target_scale + event.deltaY * -0.1, 20));
+		this.target_scale = Math.max(
+			1 / this.image_scale,
+			Math.min(this.target_scale + (event.deltaY * -0.1) / this.image_scale, 20 / this.image_scale)
+		);
 	}
 
 	getTouchDistance(touches: TouchList) {
@@ -177,9 +187,16 @@ export class TimeLine {
 			// 3, 1,
 			-this.position * this.scale + this.canvas.width / 2,
 			40,
-			this.scale * this.image.width,
+			this.scale * this.image_scale * this.image.width,
 			this.canvas.height
 		);
+
+		// Draw a line at the center of the canvas
+		this.ctx.beginPath();
+		this.ctx.moveTo(this.canvas.width / 2, 0);
+		this.ctx.lineTo(this.canvas.width / 2, this.canvas.height);
+		this.ctx.strokeStyle = 'black'; // Change the color to your preference
+		this.ctx.stroke();
 
 		this.ctx.restore();
 	}

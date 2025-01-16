@@ -1,20 +1,94 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+
+	import { GameState } from '$lib/StateManager.svelte';
+	import { Buffer } from 'buffer';
+
 	import { TimeLine } from '$lib/timeline.svelte';
+	import { max } from 'lodash';
+	import { time } from 'drizzle-orm/mysql-core';
+
+	const color: Record<number, number> = {
+		0: 0xff3737ff,
+		1: 0xffff7f37,
+		2: 0xffc3ffc3
+	};
 
 	let canvas: HTMLCanvasElement;
-	let timeline: TimeLine;
+	let timeline: TimeLine = $state();
 
-	onMount(() => {
-		timeline = new TimeLine(canvas);
+	let files: FileList | undefined = $state();
+
+	let file: Buffer | undefined = $state();
+
+	//TODO: example data -> remove it
+	let gs: GameState | undefined = $state();
+
+	$effect(() => {
+		if (files && files.length > 0) {
+			console.log('READING');
+			const reader = new FileReader();
+			reader.onload = (ev) => {
+				const result = ev.target?.result;
+				console.log(result);
+				if (result instanceof ArrayBuffer) {
+					file = Buffer.from(result);
+				}
+			};
+			reader.readAsArrayBuffer(files[0]);
+		}
 	});
 
 	onresize = () => {
 		canvas.width = Math.min(window.innerWidth, 980);
 		timeline?.draw();
 	};
+
+	onMount(() => {
+		timeline = new TimeLine(canvas);
+	});
+
+	function closeFile() {
+		files = undefined;
+		file = undefined;
+		console.log('File closed');
+	}
+
+	function process() {
+		if (file) {
+			gs = new GameState(file!);
+
+			const max_length = Math.ceil(gs.line_pointers[gs.line_pointers.length - 1].time / 10);
+			console.log(max_length);
+			if (timeline) {
+				// this.image = new ImageData(1, 1);
+				const image = new ImageData(max_length, 1);
+				const data = new Uint32Array(image.data.buffer);
+				data.fill(0x88ffffff);
+
+				gs.line_pointers.forEach((msg) => {
+					data[Math.floor(msg.time / 10)] = color[msg.dir];
+				});
+				timeline.image = image;
+				timeline.image_scale = 10;
+				timeline.target_scale = 0.5;
+				timeline.target_position = gs.line_pointers[0].time;
+			}
+		}
+	}
 </script>
 
+<nav>
+	<button class="file-input-wrapper" onclick={closeFile}>
+		{#if file}
+			Close
+		{:else}
+			<input bind:files type="file" accept=".wdcap" /> Select File
+		{/if}
+	</button>
+	<button class="hmm" onclick={process}> Process GS </button>
+	<!-- <button class="hmm" onclick={count_messages}> Calc Distribution </button> -->
+</nav>
 <div id="timeline">
 	<canvas
 		bind:this={canvas}
