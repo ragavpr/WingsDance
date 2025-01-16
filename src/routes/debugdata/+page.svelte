@@ -10,8 +10,8 @@
 	//TODO: example data -> remove it
 	let gs: GameState | undefined = $state();
 
-	let content_list: Content = $state({json:undefined});
-	let content_msg: Content = $state({json:undefined});
+	let content_list: Content = $state({ json: undefined });
+	let content_msg: Content = $state({ json: undefined });
 
 	let editor: JSONEditor;
 
@@ -57,7 +57,7 @@
 
 	async function count_messages() {
 		const a = fileCalcDistribution(file!);
-		const result: Record<string, string|number>[] = [];
+		const result: Record<string, string | number>[] = [];
 		Object.keys(a).forEach((m: number) => {
 			Object.keys(a[m]).forEach((i: number) => {
 				result.push({
@@ -67,7 +67,7 @@
 				});
 			});
 		});
-		content_list = {json: result};
+		content_list = { json: result };
 	}
 
 	async function view_msg(view_index: number) {
