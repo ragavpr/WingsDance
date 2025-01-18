@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { GameState, parseMessage, fileCalcDistribution } from '$lib/StateManager.svelte';
 	import { Buffer } from 'buffer';
-	import { JSONEditor, type Content } from 'svelte-jsoneditor';
+	import { JSONEditor, SelectionType, Mode } from 'svelte-jsoneditor';
+	import type { Content, JSONContent, JSONEditorSelection } from 'svelte-jsoneditor';
 
 	let files: FileList | undefined = $state();
 
@@ -10,13 +11,14 @@
 	//TODO: example data -> remove it
 	let gs: GameState | undefined = $state();
 
-	let content_list: Content = $state({ json: undefined });
-	let content_msg: Content = $state({ json: undefined });
+	let content_list: JSONContent = $state({ json: [] });
+	let content_msg: JSONContent = $state({ json: {} });
 
-	let editor: JSONEditor;
+	let editor_list: JSONEditor;
+	let editor_msg: JSONEditor;
 
 	$effect(() => {
-		content_list = { json: gs?.line_pointers };
+		content_list = { json: gs?.line_pointers || [] };
 	});
 
 	$effect(() => {
@@ -28,6 +30,8 @@
 				console.log(result);
 				if (result instanceof ArrayBuffer) {
 					file = Buffer.from(result);
+					gs = new GameState(file);
+					content_msg = { json: {} };
 				}
 			};
 			reader.readAsArrayBuffer(files[0]);
@@ -38,21 +42,35 @@
 		files = undefined;
 		file = undefined;
 		console.log('File closed');
-		content_msg = { json: undefined };
-		content_list = { json: undefined };
+		gs = undefined;
+		content_msg = { json: {} };
+		// content_list = { json: [] };
 	}
 
-	async function process() {
-		gs = new GameState(file!);
-		await gs.verify_integrity();
-		// console.log(gs.line_pointers.splice(0,20))
+	// async function process() {
+	// 	gs = new GameState(file!);
+	// 	await gs.verify_integrity();
+	// }
+
+	// // eslint-disable-next-line @typescript-eslint/no-explicit-any
+	// async function test_call(...args: any[]) {
+	// 	console.log("Called:", args);
+	// }
+
+	function view_msg(selection?: JSONEditorSelection) {
+		if (selection && selection.type == SelectionType.value) {
+			const index = parseInt(selection.path[0]);
+			content_msg = { json: parseMessage(file!, content_list.json[index].pt) };
+			// await editor.refresh();
+			// await editor.update(content_msg);
+			// delay(editor.expand, 0, [], () => true)
+			// await editor.expand([], (relativePath) => relativePath.length < 2);
+		}
 	}
 
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	async function test_call(...args: any[]) {
-		console.log(args);
-
-		// console.log(])
+	//TODO: Might get fixed upstream over-time
+	function list_change(content: Content) {
+		content_list = $state.snapshot(content as JSONContent);
 	}
 
 	async function count_messages() {
@@ -69,13 +87,6 @@
 		});
 		content_list = { json: result };
 	}
-
-	async function view_msg(view_index: number) {
-		content_msg.json = parseMessage(file!, content_list.json[view_index].pt);
-		await editor.update(content_msg);
-		// delay(editor.expand, 0, [], () => true)
-		await editor.expand([], (relativePath) => relativePath.length < 2);
-	}
 </script>
 
 <div class="wrapper">
@@ -87,22 +98,24 @@
 				<input bind:files type="file" accept=".wdcap" /> Select File
 			{/if}
 		</button>
-		<button class="hmm" onclick={process}> Process GS </button>
+		<!-- <button class="hmm" onclick={process}> Process GS </button> -->
 		<button class="hmm" onclick={count_messages}> Calc Distribution </button>
 	</nav>
 	<div id="messages">
 		<div class="my-json-editor jse-theme-dark">
 			<JSONEditor
+				bind:this={editor_list}
 				bind:content={content_list}
-				mode="table"
-				onSelect={(sel: any) => view_msg(sel.path[0])}
+				mode={Mode.table}
+				onSelect={view_msg}
+				onChange={list_change}
 			/>
 		</div>
 		<div
 			class="my-json-editor jse-theme-dark"
 			style={`--display: ${content_msg.json ? 'block' : 'none'}`}
 		>
-			<JSONEditor bind:this={editor} bind:content={content_msg} />
+			<JSONEditor bind:this={editor_msg} bind:content={content_msg} />
 		</div>
 	</div>
 </div>
@@ -128,22 +141,6 @@
 			flex-direction: column;
 			& > div {
 				height: 50%;
-			}
-		}
-	}
-
-	.msg_row {
-		display: flex;
-		flex-direction: row;
-		background-color: var(--color);
-		border-radius: 5px;
-		& > div {
-			padding: 10px; /* Adds some padding for readability */
-			text-align: right; /* Centers the text in each column */
-
-			&:nth-child(2) {
-				flex: 1;
-				text-align: left; /* Left aligns the first column */
 			}
 		}
 	}
