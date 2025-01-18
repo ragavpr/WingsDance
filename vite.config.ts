@@ -14,8 +14,12 @@ export default defineConfig({
 	test: {
 		include: ['src/**/*.{test,spec}.{js,ts}']
 	},
-
 	server: {
-    hmr: false // Disable Hot Module Replacement
-  }
+		port: 5173,
+		strictPort: true
+	}
+
+	// server: {
+	// 	hmr: false // Disable Hot Module Replacement
+	// }
 });

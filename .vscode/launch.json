@@ -1,0 +1,27 @@
+{
+	"version": "0.2.0",
+	"configurations": [
+		{
+			"name": "Launch Server",
+			"request": "launch",
+			"runtimeArgs": ["run", "dev", "--host 0.0.0.0"],
+			"runtimeExecutable": "bun",
+			"skipFiles": ["<node_internals>/**"],
+			"type": "node",
+			"console": "internalConsole"
+		},
+		{
+			"type": "chrome",
+			"request": "launch",
+			"name": "Launch Chrome",
+			"url": "https://dev3.op.in.eu.org/debugdata",
+			"webRoot": "${workspaceFolder}"
+		}
+	],
+	"compounds": [
+		{
+			"name": "Both",
+			"configurations": ["Launch Server", "Launch Chrome"]
+		}
+	]
+}
