@@ -11,8 +11,11 @@ export class GameState {
 	missiles: Record<number, TP.Missile[]> = {};
 	specialEntities: Record<number, TP.SpecialEntity[]> = {};
 
-	#keyframes: { time: number; pt: number }[] = []; //1.1s
-	#sub_keyframes: { time: number; pt: number }[] = []; //100ms x10
+	#sc_keyframes: { time: number; pt: number }[] = []; //1.1s
+	#keyframes: { time: number; pt: number; sc?: boolean }[] = []; //100ms
+
+	#keyframes_mean: number = 0;
+	#keyframes_sd: number = 0;
 
 	#debug_messages: any[] = [];
 
@@ -49,24 +52,29 @@ export class GameState {
 		let pt = 0;
 		let s_time = undefined;
 		while (pt < this.data.length) {
+			const time = this.data.readUInt32BE(pt);
+			if (time == undefined) {
+				console.warn('WTF');
+				break;
+			}
 			const dir = this.data.readUInt8(pt + 4);
+			const len = this.data.readUInt16BE(pt + 5) + 7;
 			const type = this.data.readUint8(pt + 7);
-			// this.line_pointers[this.data.readUInt32BE(pt)] = pt
+			// this.line_pointers[time] = pt
 			this.line_pointers.push({
-				time: this.data.readUInt32BE(pt),
+				time,
 				pt,
-				len: this.data.readUInt16BE(pt + 5) + 7,
+				len,
 				dir,
 				type,
 				info: msg_type[dir][type]
 			});
-			if (dir == 0 && type == 0xa9) {
-				if (s_time === undefined) s_time = this.data.readUInt32BE(pt);
-				else s_time += 1092.0401854714064;
-				this.#keyframes.push({ time: this.data.readUInt32BE(pt), pt });
+			if (dir == 0 && [0xa3, 0xa9, 0xa2].includes(type)) {
+				if (type != 0xa3) this.#sc_keyframes.push({ time, pt });
+				this.#keyframes.push({ time, pt, sc: type != 0xa3 });
 			}
 			if (!(this.start_time && this.start_time_utc) && dir == 2 && type == 0x41) {
-				this.start_time = this.data.readUInt32BE(pt);
+				this.start_time = time;
 				const { timestamp_start, client_info } = MessageParser.parseInfoMessage(
 					this.#getSubBuffer(pt)
 				);
@@ -74,7 +82,7 @@ export class GameState {
 				this.client_info = client_info;
 			}
 			if (!(this.end_time && this.end_time_utc) && dir == 2 && type == 0x49) {
-				this.end_time = this.data.readUInt32BE(pt);
+				this.end_time = time;
 				const { timestamp_stop } = MessageParser.parseInfoMessage(this.#getSubBuffer(pt));
 				this.end_time_utc = new Date(Number(timestamp_stop as bigint));
 			}
@@ -104,7 +112,9 @@ export class GameState {
 		// this.keyframe_interval = (this.keyframes.at(-1)!.c_time - this.keyframes.at(0)!.c_time) / (this.keyframes.length - 1)
 
 		// console.log(this)
-		// this.calculate_time_variations_rolling()
+		const { mean, sd } = this.calculate_time_variations_rolling(this.#keyframes);
+		this.#keyframes_mean = mean;
+		this.#keyframes_sd = sd;
 		// const a = this.#get_nearest_keyframe(3026)
 		// console.log(this.#keyframes[a])
 
@@ -121,7 +131,7 @@ export class GameState {
 	}
 
 	#populate_sub_keyframes(keyframe_pt: number) {
-		this.#sub_keyframes = [];
+		this.#keyframes = [];
 		let pt = this.#ptNextMessage(keyframe_pt);
 		while (true) {
 			const dir = this.data.readUInt8(pt + 4);
@@ -130,20 +140,16 @@ export class GameState {
 				break;
 			}
 			if (dir == 0 && type == 0xa3) {
-				this.#sub_keyframes.push({ time: this.data.readUInt32BE(pt), pt });
+				this.#keyframes.push({ time: this.data.readUInt32BE(pt), pt });
 			}
 			pt = this.#ptNextMessage(pt);
 		}
 	}
 
-	#get_nearest_keyframe(time: number) {}
+	// #get_nearest_keyframe(time: number) {}
 
-	calculate_time_variations_rolling(start_time: number, end_time: number) {
-		const differences = _.zipWith(
-			this.#keyframes.slice(1),
-			this.#keyframes.slice(0, -1),
-			(a, b) => a.time - b.time
-		);
+	calculate_time_variations_rolling(array: { time: number }[]) {
+		const differences = _.zipWith(array.slice(2), array.slice(1, -1), (a, b) => a.time - b.time);
 
 		const mean = _.mean(differences);
 
@@ -151,7 +157,7 @@ export class GameState {
 			_.sum(_.map(differences, (i) => Math.pow(i - mean, 2))) / differences.length
 		);
 
-		console.log({ mean, sd });
+		return { mean, sd };
 	}
 
 	async verify_integrity() {
@@ -177,6 +183,51 @@ export class GameState {
 							.update(this.data.subarray(0, this.data.byteLength - 40))
 							.digest()
 			) == 0;
+	}
+
+	get_nearest_keyframe(time: number) {
+		// First guess according to the average duration
+		console.log('KF, mean:', this.#keyframes_mean);
+
+		console.log('Start Time:', this.#keyframes[0].time);
+		console.log('End Time:', this.#keyframes.at(-1)!.time);
+
+		if (
+			!this.#keyframes ||
+			this.#keyframes.length == 0 ||
+			time < this.#keyframes[0].time ||
+			time > this.#keyframes.at(-1)!.time + this.#keyframes_mean
+		) {
+			console.log('OUT OF BOUNDS');
+			return undefined;
+		}
+
+		const i_initial_guess = Math.floor(
+			(time - this.#keyframes[1].time + this.#keyframes_mean) / this.#keyframes_mean
+		);
+
+		console.log(
+			'Guess Range: ',
+			i_initial_guess,
+			this.#keyframes[1].time + (i_initial_guess - 1) * this.#keyframes_mean,
+			this.#keyframes[1].time + i_initial_guess * this.#keyframes_mean
+		);
+		console.log(
+			'Actual Range: ',
+			this.#keyframes[i_initial_guess].time,
+			this.#keyframes[i_initial_guess + 1].time
+		);
+
+		if (
+			this.#keyframes[i_initial_guess].time <= time &&
+			time < this.#keyframes[i_initial_guess + 1].time
+		) {
+			console.log('GUESS CORRECT');
+			return true;
+		} else {
+			console.log('GUESS WRONG');
+			return false;
+		}
 	}
 }
 
