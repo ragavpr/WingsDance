@@ -193,12 +193,6 @@ export class GameState {
 
 	get_nearest_keyframe(time: number) {
 		const test_correct = (time: number, index: number) => {
-			console.log(
-				'Actual Test: ', index,
-				this.#keyframes[i_initial_guess].time,
-				time,
-				this.#keyframes[Math.min(this.#keyframes.length - 1, i_initial_guess + 1)].time
-			);
 			return this.#keyframes[index].time <= time &&
 			(this.#keyframes.length - 1 == index || time < this.#keyframes[index + 1].time)
 		}
@@ -220,34 +214,41 @@ export class GameState {
 
 		time = Math.min(time, this.#keyframes.at(-1)!.time)
 		
-		let i_initial_guess = Math.floor(
+		let i_guess = Math.floor(
 			(time - this.#keyframes[1].time + this.#keyframes_mean) / this.#keyframes_mean
 		);
 
-		console.log('Guess Index: ', i_initial_guess)
+		console.log('Guess Index: ', i_guess)
 		console.log(
 			'Guess Range: ',
-			this.#keyframes[1].time + (i_initial_guess - 1) * this.#keyframes_mean,
-			this.#keyframes[1].time + i_initial_guess * this.#keyframes_mean
+			this.#keyframes[1].time + (i_guess - 1) * this.#keyframes_mean,
+			this.#keyframes[1].time + i_guess * this.#keyframes_mean
 		);
 
-		if (test_correct(time, i_initial_guess)) {
-			console.log('GUESS CORRECT');
+		let attempts = 15;
+		while(attempts > 0) {
+			attempts--;
+			if(test_correct(time, i_guess)) break;
+			const diff = time - this.#keyframes[i_guess].time;
+			if(diff < 0) {
+				i_guess += Math.floor(diff/this.#keyframes_mean)
+			} else if (diff > 0) {
+				i_guess += Math.ceil(diff/this.#keyframes_mean)
+			}
+		}
+
+		console.log(
+			'Actual Test: ', i_guess,
+			this.#keyframes[i_guess].time,
+			time,
+			this.#keyframes[Math.min(this.#keyframes.length - 1, i_guess + 1)].time
+		);
+		if (test_correct(time, i_guess)) {
+			console.log('SEEKED CORRECTLY');
 			return true;
 		} else {
-			const diff = time - this.#keyframes[i_initial_guess].time;
-			if(diff < 0) {
-				i_initial_guess += Math.floor(diff/this.#keyframes_mean)
-			} else if (diff > 0) {
-				i_initial_guess += Math.ceil(diff/this.#keyframes_mean)
-			}
-			if (test_correct(time, i_initial_guess)) {
-				console.log('GUESS CORRECT', i_initial_guess);
-				return true;
-			} else {
-				console.log('GUESS WRONG', i_initial_guess);
-				return false;
-			}
+			console.error('SEEKED INCORRECTLY');
+			return false;
 		}
 	}
 }
