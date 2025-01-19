@@ -193,6 +193,12 @@ export class GameState {
 
 	get_nearest_keyframe(time: number) {
 		const test_correct = (time: number, index: number) => {
+			console.log(
+				'Compare: ', index,
+				this.#keyframes[index].time,
+				time,
+				this.#keyframes[Math.min(this.#keyframes.length - 1, index + 1)].time
+			);
 			return this.#keyframes[index].time <= time &&
 			(this.#keyframes.length - 1 == index || time < this.#keyframes[index + 1].time)
 		}
@@ -211,45 +217,41 @@ export class GameState {
 			console.log('OUT OF BOUNDS');
 			return undefined;
 		}
-
-		time = Math.min(time, this.#keyframes.at(-1)!.time)
 		
-		let i_guess = Math.floor(
-			(time - this.#keyframes[1].time + this.#keyframes_mean) / this.#keyframes_mean
-		);
+		time = Math.min(time, this.#keyframes.at(-1)!.time)
+		const mean_start_time = this.#keyframes[1].time - this.#keyframes_mean
 
-		console.log('Guess Index: ', i_guess)
+		let i_guess = Math.floor((time - mean_start_time)/this.#keyframes_mean);
+
 		console.log(
-			'Guess Range: ',
+			'Guess: ', i_guess,
 			this.#keyframes[1].time + (i_guess - 1) * this.#keyframes_mean,
 			this.#keyframes[1].time + i_guess * this.#keyframes_mean
 		);
 
 		let attempts = 15;
-		while(attempts > 0) {
-			attempts--;
+		while(attempts-- > 0) {
 			if(test_correct(time, i_guess)) break;
-			const diff = time - this.#keyframes[i_guess].time;
-			if(diff < 0) {
-				i_guess += Math.floor(diff/this.#keyframes_mean)
-			} else if (diff > 0) {
-				i_guess += Math.ceil(diff/this.#keyframes_mean)
+			const val = (time - this.#keyframes[i_guess].time)/this.#keyframes_mean;
+			if(val < 0) {
+				i_guess += Math.floor(val)
+			} else if (val > 0) {
+				i_guess += Math.ceil(val)
 			}
 		}
 
+		if (attempts <= 0) {
+			console.error('SEEK STEPS EXHAUSTED')
+		}
+
 		console.log(
-			'Actual Test: ', i_guess,
+			'Final Test: ', i_guess,
 			this.#keyframes[i_guess].time,
 			time,
 			this.#keyframes[Math.min(this.#keyframes.length - 1, i_guess + 1)].time
 		);
-		if (test_correct(time, i_guess)) {
-			console.log('SEEKED CORRECTLY');
-			return true;
-		} else {
-			console.error('SEEKED INCORRECTLY');
-			return false;
-		}
+
+		return i_guess;
 	}
 }
 
