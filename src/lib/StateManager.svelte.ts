@@ -152,10 +152,16 @@ export class GameState {
 		const differences = _.zipWith(array.slice(2), array.slice(1, -1), (a, b) => a.time - b.time);
 
 		const mean = _.mean(differences);
+		
+		const start_time = array[1].time - mean;
 
 		const sd = Math.sqrt(
 			_.sum(_.map(differences, (i) => Math.pow(i - mean, 2))) / differences.length
 		);
+
+		const sdd = _.sum(_.map(differences, (i) => i - mean))
+
+		console.log("Keyframe prediction: ", start_time, mean, sd, sdd)
 
 		return { mean, sd };
 	}
@@ -186,11 +192,21 @@ export class GameState {
 	}
 
 	get_nearest_keyframe(time: number) {
-		// First guess according to the average duration
-		console.log('KF, mean:', this.#keyframes_mean);
+		const test_correct = (time: number, index: number) => {
+			console.log(
+				'Actual Test: ', index,
+				this.#keyframes[i_initial_guess].time,
+				time,
+				this.#keyframes[Math.min(this.#keyframes.length - 1, i_initial_guess + 1)].time
+			);
+			return this.#keyframes[index].time <= time &&
+			(this.#keyframes.length - 1 == index || time < this.#keyframes[index + 1].time)
+		}
 
-		console.log('Start Time:', this.#keyframes[0].time);
+		// First guess according to the average duration
+		console.log('Start Time:', this.#keyframes.at(0)!.time);
 		console.log('End Time:', this.#keyframes.at(-1)!.time);
+		console.log('Seek Time:', time);
 
 		if (
 			!this.#keyframes ||
@@ -202,31 +218,36 @@ export class GameState {
 			return undefined;
 		}
 
-		const i_initial_guess = Math.floor(
+		time = Math.min(time, this.#keyframes.at(-1)!.time)
+		
+		let i_initial_guess = Math.floor(
 			(time - this.#keyframes[1].time + this.#keyframes_mean) / this.#keyframes_mean
 		);
 
+		console.log('Guess Index: ', i_initial_guess)
 		console.log(
 			'Guess Range: ',
-			i_initial_guess,
 			this.#keyframes[1].time + (i_initial_guess - 1) * this.#keyframes_mean,
 			this.#keyframes[1].time + i_initial_guess * this.#keyframes_mean
 		);
-		console.log(
-			'Actual Range: ',
-			this.#keyframes[i_initial_guess].time,
-			this.#keyframes[i_initial_guess + 1].time
-		);
 
-		if (
-			this.#keyframes[i_initial_guess].time <= time &&
-			time < this.#keyframes[i_initial_guess + 1].time
-		) {
+		if (test_correct(time, i_initial_guess)) {
 			console.log('GUESS CORRECT');
 			return true;
 		} else {
-			console.log('GUESS WRONG');
-			return false;
+			const diff = time - this.#keyframes[i_initial_guess].time;
+			if(diff < 0) {
+				i_initial_guess += Math.floor(diff/this.#keyframes_mean)
+			} else if (diff > 0) {
+				i_initial_guess += Math.ceil(diff/this.#keyframes_mean)
+			}
+			if (test_correct(time, i_initial_guess)) {
+				console.log('GUESS CORRECT', i_initial_guess);
+				return true;
+			} else {
+				console.log('GUESS WRONG', i_initial_guess);
+				return false;
+			}
 		}
 	}
 }

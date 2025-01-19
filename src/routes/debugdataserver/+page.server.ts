@@ -16,7 +16,8 @@ const gs = new GameState(data);
 
 // console.log(gs.line_pointers)
 
-gs.get_nearest_keyframe(14032);
+gs.get_nearest_keyframe(5919.5);
+// gs.get_nearest_keyframe(6012);
 
 // const result = fileParseFindLine(data, 9)
 // const result = fileParseAll(data, 162, Infinity)
