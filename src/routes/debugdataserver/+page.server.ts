@@ -20,6 +20,8 @@ const gs = new GameState(data);
 // gs.get_nearest_keyframe(6008);
 // gs.get_nearest_keyframe(6012);
 
+gs.seek_state(6000)
+
 // const result = fileParseFindLine(data, 9)
 // const result = fileParseAll(data, 162, Infinity)
 // const result = fileCalcDistribution(data);

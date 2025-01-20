@@ -10,11 +10,14 @@ function clamp(min: number, max: number, value: number) {
     return Math.min(max, Math.max(min, value));
 }
 
+function interpolate(v0: number, v1: number, ratio: number) {
+	return v0 + (v1 - v0)*ratio
+}
 
 export class GameState {
-	planes: Record<number, TP.Plane[]> = {};
-	missiles: Record<number, TP.Missile[]> = {};
-	specialEntities: Record<number, TP.SpecialEntity[]> = {};
+	planes: Record<number, TP.Plane> = {};
+	missiles: Record<number, TP.Missile> = {};
+	specialEntities: Record<number, TP.SpecialEntity> = {};
 
 	#sc_keyframes: { time: number; pt: number }[] = []; //1.1s
 	#keyframes: { time: number; pt: number; sc?: boolean }[] = []; //100ms
@@ -218,6 +221,41 @@ export class GameState {
 
 		// console.log(`SEEKED: ${index}`);
 		return index;
+	}
+
+	seek_state(time: number) {
+		const index = this.get_nearest_keyframe(time)
+		
+		const kf0 = this.#keyframes[index]
+		const kf1 = this.#keyframes[index+1] //undefined if last
+
+		const [time0, pt0] = [kf0.time, kf0.pt]
+		const [time1, pt1] = [kf1?.time, kf1?.pt || pt0]
+
+		let interpolate = 0
+		const tolerance = this.#keyframes_mean + this.#keyframes_sd;
+		if(kf1 != undefined && time0 - time1 < tolerance) {
+			const tt0 = time1 - Math.min(time1-time0, tolerance)
+
+			interpolate = (time - tt0)/(time1-tt0)
+		}
+
+		// console.log(time0, time, time1, interpolate, tolerance)
+
+		const s0 = parseMessage(this.data, pt0)
+		const s1 = parseMessage(this.data, pt1)
+
+		// const {planes, missiles1, specialEntities1} = parseMessage(this.data, pt1)
+		// console.log(s0.planes[8320].x_gu, s1.planes[8320].x_gu, this.interpolate_plane(s0.planes[8320], s1.planes[8320], interpolate).x_gu)
+	}
+
+	interpolate_plane(p0: TP.Plane, p1: TP.Plane, ratio: number) {
+		if(p1.state?.is_active) {
+			p0.x_gu = interpolate(p0.x_gu!, p1.x_gu!, ratio)
+			p0.y_gu = interpolate(p0.y_gu!, p1.y_gu!, ratio)
+			// p0.angle = interpolate(p0.angle!, p1.angle!, ratio)
+		}
+		return p0
 	}
 }
 
