@@ -6,6 +6,11 @@ import { dir_type, msg_type } from './MessageParser';
 import _ from 'lodash';
 import { browser } from '$app/environment';
 
+function clamp(min: number, max: number, value: number) {
+    return Math.min(max, Math.max(min, value));
+}
+
+
 export class GameState {
 	planes: Record<number, TP.Plane[]> = {};
 	missiles: Record<number, TP.Missile[]> = {};
@@ -161,7 +166,7 @@ export class GameState {
 
 		const sdd = _.sum(_.map(differences, (i) => i - mean))
 
-		console.log("Keyframe prediction: ", start_time, mean, sd, sdd)
+		// console.log("Keyframe prediction: ", start_time, mean, sd, sdd)
 
 		return { mean, sd };
 	}
@@ -193,65 +198,26 @@ export class GameState {
 
 	get_nearest_keyframe(time: number) {
 		const test_correct = (time: number, index: number) => {
-			console.log(
-				'Compare: ', index,
-				this.#keyframes[index].time,
-				time,
-				this.#keyframes[Math.min(this.#keyframes.length - 1, index + 1)].time
-			);
 			return this.#keyframes[index].time <= time &&
 			(this.#keyframes.length - 1 == index || time < this.#keyframes[index + 1].time)
 		}
 
-		// First guess according to the average duration
-		console.log('Start Time:', this.#keyframes.at(0)!.time);
-		console.log('End Time:', this.#keyframes.at(-1)!.time);
-		console.log('Seek Time:', time);
+		time = clamp(this.#keyframes[0].time, this.#keyframes.at(-1)!.time, time)
 
-		if (
-			!this.#keyframes ||
-			this.#keyframes.length == 0 ||
-			time < this.#keyframes[0].time ||
-			time > this.#keyframes.at(-1)!.time + this.#keyframes_mean
-		) {
-			console.log('OUT OF BOUNDS');
-			return undefined;
-		}
-		
-		time = Math.min(time, this.#keyframes.at(-1)!.time)
-		const mean_start_time = this.#keyframes[1].time - this.#keyframes_mean
-
-		let i_guess = Math.floor((time - mean_start_time)/this.#keyframes_mean);
-
-		console.log(
-			'Guess: ', i_guess,
-			this.#keyframes[1].time + (i_guess - 1) * this.#keyframes_mean,
-			this.#keyframes[1].time + i_guess * this.#keyframes_mean
-		);
-
-		let attempts = 15;
+		let index = 1;
+		let attempts = 16;
 		while(attempts-- > 0) {
-			if(test_correct(time, i_guess)) break;
-			const val = (time - this.#keyframes[i_guess].time)/this.#keyframes_mean;
-			if(val < 0) {
-				i_guess += Math.floor(val)
-			} else if (val > 0) {
-				i_guess += Math.ceil(val)
-			}
+			let val = Math.floor((time - this.#keyframes[index].time)/this.#keyframes_mean);
+			if(val == 0) val += 1 // only if initial_guess is correct, comparison happens two times.
+			index += val
+			if(test_correct(time, index)) break;
 		}
-
-		if (attempts <= 0) {
+		if (attempts < 1) {
 			console.error('SEEK STEPS EXHAUSTED')
 		}
 
-		console.log(
-			'Final Test: ', i_guess,
-			this.#keyframes[i_guess].time,
-			time,
-			this.#keyframes[Math.min(this.#keyframes.length - 1, i_guess + 1)].time
-		);
-
-		return i_guess;
+		// console.log(`SEEKED: ${index}`);
+		return index;
 	}
 }
 
