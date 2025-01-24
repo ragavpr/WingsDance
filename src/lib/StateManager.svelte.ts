@@ -16,8 +16,8 @@ export class GameState {
 	missiles: Record<number, TP.Missile[]> = {};
 	specialEntities: Record<number, TP.SpecialEntity[]> = {};
 
-	#sc_keyframes: { time: number; pt: number }[] = []; //1.1s
-	#keyframes: { time: number; pt: number; sc?: boolean }[] = []; //100ms
+	// #sc_keyframes: { time: number; pt: number, bullet_hit?: number }[] = []; //1.1s
+	#keyframes: { time: number; pt: number; sc?: boolean; sub_events?: any }[] = []; //100ms
 
 	#keyframes_mean: number = 0;
 	#keyframes_sd: number = 0;
@@ -54,8 +54,9 @@ export class GameState {
 	constructor(data: Buffer) {
 		this.data = data;
 
+		let cache_sub_events: any = undefined //bullet-hit event and state-update is in sync.
+		const cache: Record<string, any> = {};
 		let pt = 0;
-		let s_time = undefined;
 		while (pt < this.data.length) {
 			const time = this.data.readUInt32BE(pt);
 			if (time == undefined) {
@@ -74,9 +75,41 @@ export class GameState {
 				type,
 				info: msg_type[dir][type]
 			});
-			if (dir == 0 && [0xa3, 0xa9, 0xa2].includes(type)) {
-				if (type != 0xa3) this.#sc_keyframes.push({ time, pt });
-				this.#keyframes.push({ time, pt, sc: type != 0xa3 });
+			if (dir == 0) {
+				if ([0xa3, 0xa9, 0xa2].includes(type)) {
+					this.#keyframes.push({
+						time,
+						pt,
+						sub_events: cache_sub_events,
+						sc: type != 0xa3
+					});
+					cache_sub_events = undefined;
+				}
+
+				if([0xb0, 0xa4, 0xa1, 0xab].includes(type)) {
+					cache_sub_events ??= {}
+					const sub_key = type == 0xb0 ?
+													  'bullet_hit'
+													: type == 0xa4 ?
+														  'player_join'
+														: 'mc_player_join'
+					cache_sub_events[sub_key] ??= []
+					if([0xa1, 0xab].includes(type)) {
+						cache_sub_events[sub_key].push({pt, time, addend_pt: cache.mc_player_join_send})
+						delete cache.mc_player_join_send
+					} else {
+						cache_sub_events[sub_key].push({pt, time})
+					}
+				}
+			}
+			if (dir == 1) {
+				if([0x02, 0x08].includes(type)) {
+					cache_sub_events ??= {}
+					const sub_key = 'mc_player_join_send'
+					cache_sub_events[sub_key] ??= []
+					cache_sub_events[sub_key].push({pt, time})
+					cache.mc_player_join_send ??= pt
+				}
 			}
 			if (!(this.start_time && this.start_time_utc) && dir == 2 && type == 0x41) {
 				this.start_time = time;

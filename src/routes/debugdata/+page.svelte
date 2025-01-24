@@ -4,6 +4,8 @@
 	import { JSONEditor, SelectionType, Mode } from 'svelte-jsoneditor';
 	import type { Content, JSONContent, JSONEditorSelection } from 'svelte-jsoneditor';
 
+	const delay = (ms: number) => new Promise((res) => setTimeout(res, ms));
+
 	let files: FileList | undefined = $state();
 
 	let file: Buffer | undefined = $state();
@@ -57,13 +59,14 @@
 	// 	console.log("Called:", args);
 	// }
 
-	function view_msg(selection?: JSONEditorSelection) {
+	async function view_msg(selection?: JSONEditorSelection) {
 		if (selection && selection.type == SelectionType.value) {
 			const index = parseInt(selection.path[0]);
 			content_msg = { json: parseMessage(file!, content_list.json[index].pt) };
 			// await editor.refresh();
 			// await editor.update(content_msg);
-			// delay(editor.expand, 0, [], () => true)
+			await delay(0);
+			await editor_msg.expand([], () => true)
 			// await editor.expand([], (relativePath) => relativePath.length < 2);
 		}
 	}

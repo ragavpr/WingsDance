@@ -7,8 +7,7 @@ import {
 	fileParseAll,
 	fileParseFindLine
 } from '$lib/StateManager.svelte';
-
-const file = '/home/alt/Downloads/WingsDanceRecord-2024-11-29T10_36_37.315Z-IN-fun.wdcap';
+const file = '/home/alt/Downloads/WingsDanceRecord-2024-11-29T10_36_37.315Z-IN-fun.wdcap'; //empty server
 // const file = '/home/alt/Downloads/WingsDanceRecord-2024-12-01T11_57_56.622Z.wdcap';
 
 const data = fs.readFileSync(file, null);
