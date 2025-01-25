@@ -52,6 +52,17 @@
 		timeline = new TimeLine(canvas);
 	});
 
+	$effect(() => {
+		const scene = phaserRef.scene as Game;
+		if(timeline?.position && scene) {
+			const state = gs?.get_planes_at_time(timeline.position)
+			if(state)	scene.planes_state = state
+			// (scene as Game).updateScene()
+			console.log("HMMM")
+		}
+	})
+	
+
 	function closeFile() {
 		files = undefined;
 		file = undefined;
@@ -71,22 +82,14 @@
 				data.fill(0x88ffffff);
 
 				gs.line_pointers.forEach((msg) => {
-					data[Math.floor(msg.time / 10)] = color[msg.dir];
+					if(msg.dir == 0 && [0xa2, 0xa3, 0xa9].includes(msg.type)) 
+						data[Math.floor(msg.time / 10)] = color[msg.dir];
 				});
 				timeline.image = image;
 				timeline.image_scale = 10;
 				timeline.target_scale = 0.5;
 				timeline.target_position = gs.line_pointers[0].time;
 			}
-		}
-	}
-
-	function updateScene() {
-		const scene = phaserRef.scene as Game;
-		if(scene) {
-			const state = gs?.get_planes_at_time(timeline.position)
-			scene.updateScene(state)
-			// (scene as Game).updateScene()
 		}
 	}
 
@@ -107,9 +110,9 @@
 			{/if}
 		</button>
 		<button class="hmm" onclick={process}> Process GS </button>
-		<div>
-			<button class="button" onclick={updateScene}>Update Scene</button>
-		</div>
+		<!-- <div> -->
+			<!-- <button class="button" onclick={updateScene}>Update Scene</button> -->
+		<!-- </div> -->
 		<!-- <div>
 			<button class="button" disabled={canMoveSprite} on:click={moveSprite}>Toggle Movement</button>
 		</div> -->

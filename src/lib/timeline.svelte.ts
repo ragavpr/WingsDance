@@ -26,6 +26,8 @@ export class TimeLine {
 
 	#last_touch_distance: number = 0;
 
+	playing = true;
+
 	constructor(canvas: HTMLCanvasElement) {
 		$effect(() => {
 			const _ =
@@ -82,6 +84,8 @@ export class TimeLine {
 		const dT = (current_frame_time - this.#last_frame_time) * 0.001;
 		const dX = (this.target_position - this.position) * this.smoothness;
 		const dS = (this.target_scale - this.scale) * this.smoothness;
+
+		this.target_position += dT * 1000;
 
 		if (!this.#is_held) {
 			if (Math.abs(this.velocity_position) > 0.1) {
