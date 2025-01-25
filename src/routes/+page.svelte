@@ -2,7 +2,7 @@
 	import type { Scene } from 'phaser';
 	import type { Game } from '../game/scenes/Game';
 	import PhaserGame, { type TPhaserRef } from '../game/PhaserGame.svelte';
-	
+
 	import { onMount } from 'svelte';
 	import { GameState } from '$lib/StateManager.svelte';
 	import { Buffer } from 'buffer';
@@ -54,11 +54,11 @@
 
 	$effect(() => {
 		const scene = phaserRef.scene as Game;
-		if(timeline?.position && scene) {
-			const state = gs?.get_planes_at_time(timeline.position)
-			if(state)	scene.planes_state = state
+		if (timeline?.position && scene) {
+			const state = gs?.getPlanes(timeline.position);
+			if (state) scene.planes_state = state;
 		}
-	})
+	});
 
 	function closeFile() {
 		files = undefined;
@@ -79,7 +79,7 @@
 				data.fill(0x88ffffff);
 
 				gs.line_pointers.forEach((msg) => {
-					if(msg.dir == 0 && [0xa2, 0xa3, 0xa9].includes(msg.type)) 
+					if (msg.dir == 0 && [0xa2, 0xa3, 0xa9].includes(msg.type))
 						data[Math.floor(msg.time / 10)] = color[msg.dir];
 				});
 				timeline.image = image;
@@ -108,7 +108,7 @@
 		</button>
 		<button class="hmm" onclick={process}> Process GS </button>
 		<!-- <div> -->
-			<!-- <button class="button" onclick={updateScene}>Update Scene</button> -->
+		<!-- <button class="button" onclick={updateScene}>Update Scene</button> -->
 		<!-- </div> -->
 		<!-- <div>
 			<button class="button" disabled={canMoveSprite} on:click={moveSprite}>Toggle Movement</button>
@@ -132,7 +132,6 @@
 </div>
 
 <style>
-
 	#timeline {
 		position: absolute;
 		width: 100%;

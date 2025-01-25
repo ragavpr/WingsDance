@@ -66,7 +66,7 @@
 			// await editor.refresh();
 			// await editor.update(content_msg);
 			await delay(0);
-			await editor_msg.expand([], () => true)
+			await editor_msg.expand([], () => true);
 			// await editor.expand([], (relativePath) => relativePath.length < 2);
 		}
 	}

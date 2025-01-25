@@ -8,9 +8,8 @@ import { browser } from '$app/environment';
 import { LRUCache } from 'lru-cache';
 
 function clamp(min: number, max: number, value: number) {
-    return Math.min(max, Math.max(min, value));
+	return Math.min(max, Math.max(min, value));
 }
-
 
 export class GameState {
 	planes: Record<number, TP.Plane[]> = {};
@@ -22,11 +21,11 @@ export class GameState {
 	#keyframes_mean: number = 0;
 	#keyframes_sd: number = 0;
 
-	#inputframes: {time: number, pt: number}[] = [];
+	#inputframes: { time: number; pt: number }[] = [];
 	#inputframes_mean: number = 0;
 	#inputframwa_sd: number = 0;
 
-	#eventframes: {time: number, pt: number, type: number, dir: number}[] = [];
+	#eventframes: { time: number; pt: number; type: number; dir: number }[] = [];
 
 	#debug_messages: any[] = [];
 
@@ -65,12 +64,37 @@ export class GameState {
 			ttl: 1000 * 60 * 5,
 			allowStale: false,
 			updateAgeOnGet: true,
-			updateAgeOnHas: false,
-		}
+			updateAgeOnHas: false
+		};
+		this.data_cache = new LRUCache<number, object>(options);
 
-		this.data_cache = new LRUCache<number, object>(options)
+		this.#populateKeyframes();
 
-		let cache_sub_events: any = undefined //bullet-hit event and state-update is in sync.
+		// console.log(this)
+		let stat = this.calculateStatistics(this.#keyframes);
+		this.#keyframes_mean = stat.mean;
+		this.#keyframes_sd = stat.sd;
+
+		stat = this.calculateStatistics(this.#inputframes);
+		this.#inputframes_mean = stat.mean;
+		this.#inputframwa_sd = stat.sd;
+		// const a = this.#get_nearest_keyframe(3026)
+		// console.log(this.#keyframes[a])
+
+		// console.log(this.start_time_utc)
+		// console.log(this.#debug_messages[0].planes)
+	}
+
+	#ptNextMessage(pt: number) {
+		return pt + 7 + this.data.readUInt16BE(pt + 5);
+	}
+
+	#getSubBuffer(pt: number) {
+		return this.data.subarray(pt + 7, this.#ptNextMessage(pt));
+	}
+
+	#populateKeyframes() {
+		let cache_sub_events: any = undefined; //bullet-hit event and state-update is in sync.
 		const cache: Record<string, any> = {};
 		let pt = 0;
 		while (pt < this.data.length) {
@@ -102,34 +126,32 @@ export class GameState {
 					cache_sub_events = undefined;
 				}
 
-				if([0xb0, 0xa4, 0xa1, 0xab].includes(type)) {
-					cache_sub_events ??= {}
-					const sub_key = type == 0xb0 ?
-													  'bullet_hit'
-													: type == 0xa4 ?
-														  'player_join'
-														: 'mc_player_join'
-					cache_sub_events[sub_key] ??= []
-					if([0xa1, 0xab].includes(type)) {
-						cache_sub_events[sub_key].push({pt, time, addend_pt: cache.mc_player_join_send})
-						delete cache.mc_player_join_send
+				if ([0xb0, 0xa4, 0xa1, 0xab].includes(type)) {
+					cache_sub_events ??= {};
+					const sub_key =
+						type == 0xb0 ? 'bullet_hit' : type == 0xa4 ? 'player_join' : 'mc_player_join';
+					cache_sub_events[sub_key] ??= [];
+					if ([0xa1, 0xab].includes(type)) {
+						cache_sub_events[sub_key].push({ pt, time, addend_pt: cache.mc_player_join_send });
+						delete cache.mc_player_join_send;
 					} else {
-						cache_sub_events[sub_key].push({pt, time})
+						cache_sub_events[sub_key].push({ pt, time });
 					}
 				}
 			}
 			if (dir == 1) {
-				if([0x02, 0x08].includes(type)) {
-					cache_sub_events ??= {}
-					const sub_key = 'mc_player_join_send'
-					cache_sub_events[sub_key] ??= []
-					cache_sub_events[sub_key].push({pt, time})
-					cache.mc_player_join_send ??= pt
+				if ([0x02, 0x08].includes(type)) {
+					cache_sub_events ??= {};
+					const sub_key = 'mc_player_join_send';
+					cache_sub_events[sub_key] ??= [];
+					cache_sub_events[sub_key].push({ pt, time });
+					cache.mc_player_join_send ??= pt;
 				}
-				if([0x03].includes(type)) {
+				if ([0x03].includes(type)) {
 					this.#inputframes.push({
-						time, pt
-					})
+						time,
+						pt
+					});
 				}
 			}
 			if (!(this.start_time && this.start_time_utc) && dir == 2 && type == 0x41) {
@@ -160,76 +182,35 @@ export class GameState {
 					_time: data.readUInt32BE(pt)
 				});
 			}
-
 			pt = this.#ptNextMessage(pt);
 		}
 		pt = this.data.byteLength - 40;
 		if (this.data.readUInt8(pt + 7) == 0x40 && this.data.readUInt16BE(pt + 5) == 33) {
 			this.checksum = this.data.subarray(pt + 8, pt + 40);
 		}
-
-		// this.keyframe_interval = (this.keyframes.at(-1)!.c_time - this.keyframes.at(0)!.c_time) / (this.keyframes.length - 1)
-
-		// console.log(this)
-		let stat = this.calculate_time_variations_rolling(this.#keyframes);
-		this.#keyframes_mean = stat.mean;
-		this.#keyframes_sd = stat.sd;
-
-		stat = this.calculate_time_variations_rolling(this.#inputframes);
-		this.#inputframes_mean = stat.mean;
-		this.#inputframwa_sd = stat.sd;
-		// const a = this.#get_nearest_keyframe(3026)
-		// console.log(this.#keyframes[a])
-
-		// console.log(this.start_time_utc)
-		// console.log(this.#debug_messages[0].planes)
-	}
-
-	#ptNextMessage(pt: number) {
-		return pt + 7 + this.data.readUInt16BE(pt + 5);
-	}
-
-	#getSubBuffer(pt: number) {
-		return this.data.subarray(pt + 7, this.#ptNextMessage(pt));
-	}
-
-	#populate_sub_keyframes(keyframe_pt: number) {
-		this.#keyframes = [];
-		let pt = this.#ptNextMessage(keyframe_pt);
-		while (true) {
-			const dir = this.data.readUInt8(pt + 4);
-			const type = this.data.readUint8(pt + 7);
-			if (dir == 0 && type == 0xa9) {
-				break;
-			}
-			if (dir == 0 && type == 0xa3) {
-				this.#keyframes.push({ time: this.data.readUInt32BE(pt), pt });
-			}
-			pt = this.#ptNextMessage(pt);
-		}
 	}
 
 	// #get_nearest_keyframe(time: number) {}
 
-	calculate_time_variations_rolling(array: { time: number }[]) {
+	calculateStatistics(array: { time: number }[]) {
 		const differences = _.zipWith(array.slice(2), array.slice(1, -1), (a, b) => a.time - b.time);
 
 		const mean = _.mean(differences);
-		
+
 		const start_time = array[1].time - mean;
 
 		const sd = Math.sqrt(
 			_.sum(_.map(differences, (i) => Math.pow(i - mean, 2))) / differences.length
 		);
 
-		const sdd = _.sum(_.map(differences, (i) => i - mean))
+		const sdd = _.sum(_.map(differences, (i) => i - mean));
 
-		console.log("Keyframe prediction: ", start_time, mean, sd, sdd)
+		console.log('Keyframe prediction: ', start_time, mean, sd, sdd);
 
 		return { mean, sd };
 	}
 
-	async verify_integrity() {
+	async verifyIntegrity() {
 		if (this.integritous !== undefined) {
 			console.warn('Already checked for integritry once');
 			return;
@@ -254,41 +235,43 @@ export class GameState {
 			) == 0;
 	}
 
-	get_nearest_keyframe(time: number) {
+	getNearestKeyframe(time: number) {
 		const test_correct = (time: number, index: number) => {
-			return this.#keyframes[index].time <= time &&
-			(this.#keyframes.length - 1 == index || time < this.#keyframes[index + 1].time)
-		}
+			return (
+				this.#keyframes[index].time <= time &&
+				(this.#keyframes.length - 1 == index || time < this.#keyframes[index + 1].time)
+			);
+		};
 
-		time = clamp(this.#keyframes[0].time, this.#keyframes.at(-1)!.time, time)
+		time = clamp(this.#keyframes[0].time, this.#keyframes.at(-1)!.time, time);
 
 		let index = 1;
 		let attempts = 16;
-		while(attempts-- > 0) {
-			let val = Math.floor((time - this.#keyframes[index].time)/this.#keyframes_mean);
-			if(val == 0) val += 1 // only if initial_guess is correct, comparison happens two times.
-			index += val
-			if(test_correct(time, index)) break;
+		while (attempts-- > 0) {
+			let val = Math.floor((time - this.#keyframes[index].time) / this.#keyframes_mean);
+			if (val == 0) val += 1; // only if initial_guess is correct, comparison happens two times.
+			index += val;
+			if (test_correct(time, index)) break;
 		}
 		if (attempts < 1) {
-			console.error('SEEK STEPS EXHAUSTED')
+			console.error('SEEK STEPS EXHAUSTED');
 		}
 
 		// console.log(`SEEKED: ${index}`);
 		return index;
 	}
 
-	get_planes_at_time(time: number) {
-		const start_i = this.get_nearest_keyframe(time);
-		const state = this.parseMessage(this.#keyframes[start_i].pt)
-		const next_state = this.parseMessage(this.#keyframes[start_i + 1].pt)
-		const events = this.#keyframes[start_i + 1].sub_events 
-		return state.planes
+	getPlanes(time: number) {
+		const start_i = this.getNearestKeyframe(time);
+		const state = this.parseMessage(this.#keyframes[start_i].pt);
+		const next_state = this.parseMessage(this.#keyframes[start_i + 1].pt);
+		const events = this.#keyframes[start_i + 1].sub_events;
+		return state.planes;
 	}
 
 	parseMessage(pt: number) {
-		const cached = this.data_cache.get(pt)
-		if (cached) return cached
+		const cached = this.data_cache.get(pt);
+		if (cached) return cached;
 		// console.log("CACHE MISS")
 		const time = this.data.readUInt32BE(pt);
 		const dir = this.data.readUInt8(pt + 4);
@@ -308,10 +291,9 @@ export class GameState {
 		result.__type = type.toString(16);
 		result.__time = time;
 		result.__dir = dir;
-		this.data_cache.set(pt, result)
+		this.data_cache.set(pt, result);
 		return result;
 	}
-
 }
 
 export function parseMessage(buffer: Buffer, offset: number) {
