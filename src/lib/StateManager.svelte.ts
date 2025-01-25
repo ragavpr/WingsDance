@@ -18,9 +18,14 @@ export class GameState {
 
 	// #sc_keyframes: { time: number; pt: number, bullet_hit?: number }[] = []; //1.1s
 	#keyframes: { time: number; pt: number; sc?: boolean; sub_events?: any }[] = []; //100ms
-
 	#keyframes_mean: number = 0;
 	#keyframes_sd: number = 0;
+
+	#inputframes: {time: number, pt: number}[] = [];
+	#inputframes_mean: number = 0;
+	#inputframwa_sd: number = 0;
+
+	#eventframes: {time: number, pt: number, type: number, dir: number}[] = [];
 
 	#debug_messages: any[] = [];
 
@@ -110,6 +115,11 @@ export class GameState {
 					cache_sub_events[sub_key].push({pt, time})
 					cache.mc_player_join_send ??= pt
 				}
+				if([0x03].includes(type)) {
+					this.#inputframes.push({
+						time, pt
+					})
+				}
 			}
 			if (!(this.start_time && this.start_time_utc) && dir == 2 && type == 0x41) {
 				this.start_time = time;
@@ -150,9 +160,13 @@ export class GameState {
 		// this.keyframe_interval = (this.keyframes.at(-1)!.c_time - this.keyframes.at(0)!.c_time) / (this.keyframes.length - 1)
 
 		// console.log(this)
-		const { mean, sd } = this.calculate_time_variations_rolling(this.#keyframes);
-		this.#keyframes_mean = mean;
-		this.#keyframes_sd = sd;
+		let { kmean, ksd } = this.calculate_time_variations_rolling(this.#keyframes);
+		this.#keyframes_mean = kmean;
+		this.#keyframes_sd = ksd;
+
+		let { imean, isd } = this.calculate_time_variations_rolling(this.#inputframes);
+		this.#inputframes_mean = imean;
+		this.#inputframwa_sd = isd;
 		// const a = this.#get_nearest_keyframe(3026)
 		// console.log(this.#keyframes[a])
 
@@ -199,7 +213,7 @@ export class GameState {
 
 		const sdd = _.sum(_.map(differences, (i) => i - mean))
 
-		// console.log("Keyframe prediction: ", start_time, mean, sd, sdd)
+		console.log("Keyframe prediction: ", start_time, mean, sd, sdd)
 
 		return { mean, sd };
 	}
