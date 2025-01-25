@@ -64,6 +64,7 @@
 		"buffer": "^6.0.3",
 		"drizzle-orm": "^0.38.4",
 		"lodash": "^4.17.21",
+		"lru-cache": "^11.0.2",
 		"phaser": "^3.87.0",
 		"postgres": "^3.4.5",
 		"svelte-jsoneditor": "^2.3.3"

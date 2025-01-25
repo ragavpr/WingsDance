@@ -85,7 +85,7 @@ export class TimeLine {
 		const dX = (this.target_position - this.position) * this.smoothness;
 		const dS = (this.target_scale - this.scale) * this.smoothness;
 
-		this.target_position += dT * 1000;
+		if(this.playing) this.target_position += dT * 1000;
 
 		if (!this.#is_held) {
 			if (Math.abs(this.velocity_position) > 0.1) {

@@ -5,6 +5,7 @@ import * as TP from '$lib/ReWings/lib/types';
 import { dir_type, msg_type } from './MessageParser';
 import _ from 'lodash';
 import { browser } from '$app/environment';
+import { LRUCache } from 'lru-cache';
 
 function clamp(min: number, max: number, value: number) {
     return Math.min(max, Math.max(min, value));
@@ -55,9 +56,19 @@ export class GameState {
 	integritous?: boolean = $state();
 
 	data: Buffer;
+	data_cache: LRUCache<number, object>;
 
 	constructor(data: Buffer) {
 		this.data = data;
+		const options = {
+			max: 500,
+			ttl: 1000 * 60 * 5,
+			allowStale: false,
+			updateAgeOnGet: true,
+			updateAgeOnHas: false,
+		}
+
+		this.data_cache = new LRUCache<number, object>(options)
 
 		let cache_sub_events: any = undefined //bullet-hit event and state-update is in sync.
 		const cache: Record<string, any> = {};
@@ -276,6 +287,9 @@ export class GameState {
 	}
 
 	parseMessage(pt: number) {
+		const cached = this.data_cache.get(pt)
+		if (cached) return cached
+		// console.log("CACHE MISS")
 		const time = this.data.readUInt32BE(pt);
 		const dir = this.data.readUInt8(pt + 4);
 		const len = this.data.readUInt16BE(pt + 5);
@@ -294,6 +308,7 @@ export class GameState {
 		result.__type = type.toString(16);
 		result.__time = time;
 		result.__dir = dir;
+		this.data_cache.set(pt, result)
 		return result;
 	}
 

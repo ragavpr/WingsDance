@@ -8,7 +8,7 @@
 	import { Buffer } from 'buffer';
 	import { TimeLine } from '$lib/timeline.svelte';
 	import { time } from 'drizzle-orm/mysql-core';
-	
+
 	//  References to the PhaserGame component (game and scene are exposed)
 	let phaserRef: TPhaserRef = { game: null, scene: null };
 
@@ -57,11 +57,8 @@
 		if(timeline?.position && scene) {
 			const state = gs?.get_planes_at_time(timeline.position)
 			if(state)	scene.planes_state = state
-			// (scene as Game).updateScene()
-			console.log("HMMM")
 		}
 	})
-	
 
 	function closeFile() {
 		files = undefined;
