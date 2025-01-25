@@ -5,8 +5,6 @@
 	import { Buffer } from 'buffer';
 
 	import { TimeLine } from '$lib/timeline.svelte';
-	import { max } from 'lodash';
-	import { time } from 'drizzle-orm/mysql-core';
 
 	const color: Record<number, number> = {
 		0: 0xff3737ff,

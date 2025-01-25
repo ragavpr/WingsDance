@@ -1,86 +1,146 @@
 <script lang="ts">
 	import type { Scene } from 'phaser';
-	import type { MainMenu } from '../game/scenes/MainMenu';
+	import type { Game } from '../game/scenes/Game';
 	import PhaserGame, { type TPhaserRef } from '../game/PhaserGame.svelte';
-
-	// The sprite can only be moved in the MainMenu Scene
-	let canMoveSprite = false;
-
+	
+	import { onMount } from 'svelte';
+	import { GameState } from '$lib/StateManager.svelte';
+	import { Buffer } from 'buffer';
+	import { TimeLine } from '$lib/timeline.svelte';
+	import { time } from 'drizzle-orm/mysql-core';
+	
 	//  References to the PhaserGame component (game and scene are exposed)
 	let phaserRef: TPhaserRef = { game: null, scene: null };
-	const spritePosition = { x: 0, y: 0 };
 
-	const changeScene = () => {
-		const scene = phaserRef.scene as MainMenu;
-
-		if (scene) {
-			// Call the changeScene method defined in the `MainMenu`, `Game` and `GameOver` Scenes
-			scene.changeScene();
-		}
+	const color: Record<number, number> = {
+		0: 0xff3737ff,
+		1: 0xffff7f37,
+		2: 0xffc3ffc3
 	};
 
-	const moveSprite = () => {
-		const scene = phaserRef.scene as MainMenu;
+	let canvas: HTMLCanvasElement;
+	let timeline: TimeLine = $state();
 
-		if (scene) {
-			// Get the update logo position
-			(scene as MainMenu).moveLogo(({ x, y }) => {
-				spritePosition.x = x;
-				spritePosition.y = y;
-			});
+	let files: FileList | undefined = $state();
+
+	let file: Buffer | undefined = $state();
+
+	//TODO: example data -> remove it
+	let gs: GameState | undefined = $state();
+
+	$effect(() => {
+		if (files && files.length > 0) {
+			console.log('READING');
+			const reader = new FileReader();
+			reader.onload = (ev) => {
+				const result = ev.target?.result;
+				console.log(result);
+				if (result instanceof ArrayBuffer) {
+					file = Buffer.from(result);
+				}
+			};
+			reader.readAsArrayBuffer(files[0]);
 		}
+	});
+
+	onresize = () => {
+		canvas.width = Math.min(window.innerWidth, 980);
+		timeline?.draw();
 	};
 
-	const addSprite = () => {
-		const scene = phaserRef.scene as Scene;
+	onMount(() => {
+		timeline = new TimeLine(canvas);
+	});
 
-		if (scene) {
-			// Add more stars
-			const x = Phaser.Math.Between(64, scene.scale.width - 64);
-			const y = Phaser.Math.Between(64, scene.scale.height - 64);
+	function closeFile() {
+		files = undefined;
+		file = undefined;
+		console.log('File closed');
+	}
 
-			//  `add.sprite` is a Phaser GameObjectFactory method and it returns a Sprite Game Object instance
-			const star = scene.add.sprite(x, y, 'star');
+	function process() {
+		if (file) {
+			gs = new GameState(file!);
 
-			//  ... which you can then act upon. Here we create a Phaser Tween to fade the star sprite in and out.
-			//  You could, of course, do this from within the Phaser Scene code, but this is just an example
-			//  showing that Phaser objects and systems can be acted upon from outside of Phaser itself.
-			scene.add.tween({
-				targets: star,
-				duration: 500 + Math.random() * 1000,
-				alpha: 0,
-				yoyo: true,
-				repeat: -1
-			});
+			const max_length = Math.ceil(gs.line_pointers[gs.line_pointers.length - 1].time / 10);
+			console.log(max_length);
+			if (timeline) {
+				// this.image = new ImageData(1, 1);
+				const image = new ImageData(max_length, 1);
+				const data = new Uint32Array(image.data.buffer);
+				data.fill(0x88ffffff);
+
+				gs.line_pointers.forEach((msg) => {
+					data[Math.floor(msg.time / 10)] = color[msg.dir];
+				});
+				timeline.image = image;
+				timeline.image_scale = 10;
+				timeline.target_scale = 0.5;
+				timeline.target_position = gs.line_pointers[0].time;
+			}
 		}
-	};
+	}
+
+	function updateScene() {
+		const scene = phaserRef.scene as Game;
+		if(scene) {
+			const state = gs?.get_planes_at_time(timeline.position)
+			scene.updateScene(state)
+			// (scene as Game).updateScene()
+		}
+	}
 
 	// Event emitted from the PhaserGame component
 	const currentScene = (scene: Scene) => {
-		canMoveSprite = scene.scene.key !== 'MainMenu';
+		// canMoveSprite = scene.scene.key !== 'Game';
 	};
 </script>
 
 <div id="app">
 	<PhaserGame bind:phaserRef currentActiveScene={currentScene} />
 	<div>
+		<button class="file-input-wrapper" onclick={closeFile}>
+			{#if file}
+				Close
+			{:else}
+				<input bind:files type="file" accept=".wdcap" /> Select File
+			{/if}
+		</button>
+		<button class="hmm" onclick={process}> Process GS </button>
 		<div>
-			<button class="button" on:click={changeScene}>Change Scene</button>
+			<button class="button" onclick={updateScene}>Update Scene</button>
 		</div>
-		<div>
+		<!-- <div>
 			<button class="button" disabled={canMoveSprite} on:click={moveSprite}>Toggle Movement</button>
-		</div>
-		<div class="spritePosition">
-			Sprite Position:
-			<pre>{JSON.stringify(spritePosition, null, 2)}</pre>
-		</div>
-		<div>
-			<button class="button" on:click={addSprite}>Add New Sprite</button>
-		</div>
+		</div> -->
 	</div>
+</div>
+<div id="timeline">
+	<canvas
+		bind:this={canvas}
+		onmousedown={timeline.handleMouseDown.bind(timeline)}
+		onmouseup={timeline.handleMouseUp.bind(timeline)}
+		onmouseleave={timeline.handleMouseUp.bind(timeline)}
+		onmousemove={timeline.handleMouseMove.bind(timeline)}
+		onwheel={timeline.handleScroll.bind(timeline)}
+		ontouchstart={timeline.handleTouchStart.bind(timeline)}
+		ontouchmove={timeline.handleTouchMove.bind(timeline)}
+		ontouchend={timeline.handleTouchEnd.bind(timeline)}
+		width={Math.min(window.innerWidth, 980)}
+		height="80"
+	></canvas>
 </div>
 
 <style>
+
+	#timeline {
+		position: absolute;
+		width: 100%;
+		display: flex;
+		justify-content: center;
+		bottom: 0;
+	}
+
 	#app {
 		width: 100%;
 		height: 100vh;

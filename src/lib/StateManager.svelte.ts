@@ -160,13 +160,13 @@ export class GameState {
 		// this.keyframe_interval = (this.keyframes.at(-1)!.c_time - this.keyframes.at(0)!.c_time) / (this.keyframes.length - 1)
 
 		// console.log(this)
-		let { kmean, ksd } = this.calculate_time_variations_rolling(this.#keyframes);
-		this.#keyframes_mean = kmean;
-		this.#keyframes_sd = ksd;
+		let stat = this.calculate_time_variations_rolling(this.#keyframes);
+		this.#keyframes_mean = stat.mean;
+		this.#keyframes_sd = stat.sd;
 
-		let { imean, isd } = this.calculate_time_variations_rolling(this.#inputframes);
-		this.#inputframes_mean = imean;
-		this.#inputframwa_sd = isd;
+		stat = this.calculate_time_variations_rolling(this.#inputframes);
+		this.#inputframes_mean = stat.mean;
+		this.#inputframwa_sd = stat.sd;
 		// const a = this.#get_nearest_keyframe(3026)
 		// console.log(this.#keyframes[a])
 
@@ -266,6 +266,37 @@ export class GameState {
 		// console.log(`SEEKED: ${index}`);
 		return index;
 	}
+
+	get_planes_at_time(time: number) {
+		const start_i = this.get_nearest_keyframe(time);
+		const state = this.parseMessage(this.#keyframes[start_i].pt)
+		const next_state = this.parseMessage(this.#keyframes[start_i + 1].pt)
+		const events = this.#keyframes[start_i + 1].sub_events 
+		return state.planes
+	}
+
+	parseMessage(pt: number) {
+		const time = this.data.readUInt32BE(pt);
+		const dir = this.data.readUInt8(pt + 4);
+		const len = this.data.readUInt16BE(pt + 5);
+		// const message = Buffer.from(new Uint8Array(data.subarray(offset+7, offset+7+len)));
+		const message = this.data.subarray(pt + 7, pt + 7 + len);
+		const type = this.data.readUInt8(pt + 7);
+		const result =
+			dir == 0
+				? MessageParser.parseReceivedMessage(message)
+				: dir == 1
+					? MessageParser.parseSentMessage(message)
+					: dir == 2
+						? MessageParser.parseInfoMessage(message)
+						: console.error('Unknown dir type', dir, type.toString(16));
+		result.__type_info = msg_type[dir][type];
+		result.__type = type.toString(16);
+		result.__time = time;
+		result.__dir = dir;
+		return result;
+	}
+
 }
 
 export function parseMessage(buffer: Buffer, offset: number) {

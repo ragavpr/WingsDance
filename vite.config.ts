@@ -16,10 +16,7 @@ export default defineConfig({
 	},
 	server: {
 		port: 5173,
-		strictPort: true
+		strictPort: true,
+		hmr: false // Disable Hot Module Replacement
 	}
-
-	// server: {
-	// 	hmr: false // Disable Hot Module Replacement
-	// }
 });
