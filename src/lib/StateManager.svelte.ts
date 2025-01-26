@@ -6,9 +6,14 @@ import { dir_type, msg_type } from './MessageParser';
 import _ from 'lodash';
 import { browser } from '$app/environment';
 import { LRUCache } from 'lru-cache';
+import * as T from '$lib/ReWings/lib/types'
 
 function clamp(min: number, max: number, value: number) {
 	return Math.min(max, Math.max(min, value));
+}
+
+function interpolate(v0: number, v1: number, ratio: number) {
+	return v0 + (v1 - v0)*ratio
 }
 
 export class GameState {
@@ -17,7 +22,7 @@ export class GameState {
 	specialEntities: Record<number, TP.SpecialEntity[]> = {};
 
 	// #sc_keyframes: { time: number; pt: number, bullet_hit?: number }[] = []; //1.1s
-	#keyframes: { time: number; pt: number; sc?: boolean; sub_events?: any }[] = []; //100ms
+	#keyframes: { time: number; pt: number; sc?: boolean; sub_events?: Record<string, {time: number, pt: number}[]> }[] = []; //100ms
 	#keyframes_mean: number = 0;
 	#keyframes_sd: number = 0;
 
@@ -28,6 +33,8 @@ export class GameState {
 	#eventframes: { time: number; pt: number; type: number; dir: number }[] = [];
 
 	#debug_messages: any[] = [];
+
+	debug_info: any = $state();
 
 	// line_pointers: Record<number, number> = $state({})
 	line_pointers: {
@@ -71,11 +78,11 @@ export class GameState {
 		this.#populateKeyframes();
 
 		// console.log(this)
-		let stat = this.calculateStatistics(this.#keyframes);
+		let stat = this.#calculateStatistics(this.#keyframes);
 		this.#keyframes_mean = stat.mean;
 		this.#keyframes_sd = stat.sd;
 
-		stat = this.calculateStatistics(this.#inputframes);
+		stat = this.#calculateStatistics(this.#inputframes);
 		this.#inputframes_mean = stat.mean;
 		this.#inputframwa_sd = stat.sd;
 		// const a = this.#get_nearest_keyframe(3026)
@@ -126,10 +133,10 @@ export class GameState {
 					cache_sub_events = undefined;
 				}
 
-				if ([0xb0, 0xa4, 0xa1, 0xab].includes(type)) {
+				if ([0xb0, 0xa4, 0xa1, 0xab, 0xa5].includes(type)) {
 					cache_sub_events ??= {};
 					const sub_key =
-						type == 0xb0 ? 'bullet_hit' : type == 0xa4 ? 'player_join' : 'mc_player_join';
+						type == 0xb0 ? 'bullet_hit' : type == 0xa5 ? 'despawn' : type == 0xa4 ? 'player_join' : 'mc_player_join';
 					cache_sub_events[sub_key] ??= [];
 					if ([0xa1, 0xab].includes(type)) {
 						cache_sub_events[sub_key].push({ pt, time, addend_pt: cache.mc_player_join_send });
@@ -179,7 +186,7 @@ export class GameState {
 					...msg,
 					_type: type,
 					_type_info: msg_type[0][type],
-					_time: data.readUInt32BE(pt)
+					_time: this.data.readUInt32BE(pt)
 				});
 			}
 			pt = this.#ptNextMessage(pt);
@@ -190,9 +197,7 @@ export class GameState {
 		}
 	}
 
-	// #get_nearest_keyframe(time: number) {}
-
-	calculateStatistics(array: { time: number }[]) {
+	#calculateStatistics(array: { time: number }[]) {
 		const differences = _.zipWith(array.slice(2), array.slice(1, -1), (a, b) => a.time - b.time);
 
 		const mean = _.mean(differences);
@@ -263,15 +268,82 @@ export class GameState {
 
 	getPlanes(time: number) {
 		const start_i = this.getNearestKeyframe(time);
-		const state = this.parseMessage(this.#keyframes[start_i].pt);
-		const next_state = this.parseMessage(this.#keyframes[start_i + 1].pt);
+		const state = this.parseMessage<T.StateUpdate>(this.#keyframes[start_i].pt);
+		const next_state = this.parseMessage<T.StateUpdate>(this.#keyframes[start_i + 1].pt);
 		const events = this.#keyframes[start_i + 1].sub_events;
-		return state.planes;
+
+		const ratio = (time - state.__time) / (next_state.__time - state.__time)
+		
+		const current_ids = Object.keys(state.planes!).map(i => parseInt(i));
+		const next_ids = Object.values(next_state.planes!).filter(i => i.state.is_active).map(i => parseInt(i.id));
+		
+		const joined_ids: number[] = []
+		const left_ids: number[] = []
+
+		events?.player_join?.forEach((event) => {
+			// 0xA4 - Other players
+			const event_msg = this.parseMessage<T.EventPlayerJoin>(event.pt)
+			Object.values(event_msg.planes!).forEach((plane) => {
+				joined_ids.push(plane.id)
+				if(event.time <= time) {
+					const ratio = (time - event.time) / (next_state.__time - event.time)
+					state.planes![plane.id] = structuredClone(next_state.planes![plane.id])
+					state.planes![plane.id].x_gu = interpolate(plane.x_gu!, next_state.planes![plane.id].x_gu!, ratio)
+					state.planes![plane.id].y_gu = interpolate(plane.y_gu!, next_state.planes![plane.id].y_gu!, ratio)
+					state.planes![plane.id].angle = interpolate(plane.angle!, next_state.planes![plane.id].angle!, ratio)
+				} else {
+					if(state.planes![plane.id]?.state.is_active) console.log("WAHT");
+				}
+			})
+		})
+
+		events?.mc_player_join?.forEach((event) => {
+			// 0xA1 - MC Player New
+			// 0xAB - MC Player Continue
+			const event_msg = this.parseMessage<T.EventMCPlayerJoin>(event.pt)
+			joined_ids.push(event_msg.id)
+			if(event.time <= time) {
+				const ratio = (time - event.time) / (next_state.__time - event.time)
+				state.planes![event_msg.id] = structuredClone(next_state.planes![event_msg.id])
+				state.planes![event_msg.id].x_gu = interpolate(event_msg.x_gu, next_state.planes![event_msg.id].x_gu!, ratio)
+				state.planes![event_msg.id].y_gu = interpolate(event_msg.y_gu, next_state.planes![event_msg.id].y_gu!, ratio)
+				state.planes![event_msg.id].angle = interpolate(event_msg.angle, next_state.planes![event_msg.id].angle!, ratio)
+			} else {
+				if(state.planes![event_msg.id]?.state.is_active) console.log("WAHT");
+			}
+		})
+
+		events?.despawn?.forEach((event) => {
+			// 0xA5 - despawn messages
+			const event_msg = this.parseMessage<T.EventDespawn>(event.pt)
+			left_ids.push(event_msg.id_victim)
+			if(time >= event.time) state.planes![event_msg.id_victim] = next_state.planes![event_msg.id_victim]
+		})
+
+		next_ids.forEach(id => {
+			if(state.planes![id] && next_state.planes![id]) {
+				state.planes![id].x_gu = interpolate(state.planes![id].x_gu!, next_state.planes![id].x_gu!, ratio)
+				state.planes![id].y_gu = interpolate(state.planes![id].y_gu!, next_state.planes![id].y_gu!, ratio)
+				state.planes![id].angle = interpolate(state.planes![id].angle!, next_state.planes![id].angle!, ratio)
+			}
+		})
+
+		// this.debug_info = {
+		// 	ratio,
+		// 	start_i,
+		// 	// current_ids,
+		// 	// next_ids: next_ids,
+		// 	// joined_ids,
+		// 	// left_ids,
+		// 	// differenceA: _.difference(current_ids, next_ids),
+		// 	// differenceB: _.difference(next_ids, current_ids)
+		// }
+		return structuredClone(state.planes)
 	}
 
-	parseMessage(pt: number) {
+	parseMessage<T>(pt: number): T.Parsed<T> {
 		const cached = this.data_cache.get(pt);
-		if (cached) return cached;
+		if (cached) return structuredClone(cached) as T.Parsed<T>;
 		// console.log("CACHE MISS")
 		const time = this.data.readUInt32BE(pt);
 		const dir = this.data.readUInt8(pt + 4);
@@ -292,11 +364,11 @@ export class GameState {
 		result.__time = time;
 		result.__dir = dir;
 		this.data_cache.set(pt, result);
-		return result;
+		return structuredClone(result);
 	}
 }
 
-export function parseMessage(buffer: Buffer, offset: number) {
+export function parseMessageStatic(buffer: Buffer, offset: number) {
 	const time = buffer.readUInt32BE(offset);
 	const dir = buffer.readUInt8(offset + 4);
 	const len = buffer.readUInt16BE(offset + 5);
@@ -376,7 +448,7 @@ export function fileParseFindLine(data: Buffer, line: number) {
 	// console.log(offset)
 	const len = data.readUInt16BE(offset + 5);
 	try {
-		const result = parseMessage(data, offset);
+		const result = parseMessageStatic(data, offset);
 		console.log(
 			offset,
 			data.subarray(offset + 7, offset + 7 + len),
@@ -405,7 +477,7 @@ export function fileParseAll(data: Buffer, print_type?: number, limit: number = 
 		const message = Buffer.from(new Uint8Array(data.subarray(offset + 7, offset + 7 + len)));
 		const type = data.readUint8(offset + 7);
 		try {
-			const result = parseMessage(data, offset);
+			const result = parseMessageStatic(data, offset);
 			if (print_type == type) {
 				// console.log(result);
 				return result;

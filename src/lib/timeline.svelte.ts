@@ -3,8 +3,8 @@ export class TimeLine {
 	ctx!: CanvasRenderingContext2D;
 	frame_request_stub?: number | void;
 
-	smoothness: number = 0.1;
-	friction: number = 0.1;
+	smoothness: number = 0;
+	friction: number = 1;
 
 	position: number = $state(100);
 	target_position: number = $state(0);
@@ -26,7 +26,7 @@ export class TimeLine {
 
 	#last_touch_distance: number = 0;
 
-	playing = true;
+	playing = false;
 
 	constructor(canvas: HTMLCanvasElement) {
 		$effect(() => {

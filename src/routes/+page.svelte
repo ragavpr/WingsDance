@@ -99,20 +99,25 @@
 <div id="app">
 	<PhaserGame bind:phaserRef currentActiveScene={currentScene} />
 	<div>
-		<button class="file-input-wrapper" onclick={closeFile}>
-			{#if file}
+		<div>
+			{JSON.stringify(gs?.debug_info)}
+			{timeline?.position}
+		</div>
+		<div class="button">
+			<button class="file-input-wrapper" onclick={closeFile}>
+				{#if file}
 				Close
-			{:else}
+				{:else}
 				<input bind:files type="file" accept=".wdcap" /> Select File
-			{/if}
-		</button>
-		<button class="hmm" onclick={process}> Process GS </button>
-		<!-- <div> -->
-		<!-- <button class="button" onclick={updateScene}>Update Scene</button> -->
-		<!-- </div> -->
-		<!-- <div>
-			<button class="button" disabled={canMoveSprite} on:click={moveSprite}>Toggle Movement</button>
-		</div> -->
+				{/if}
+			</button>
+		</div>
+		<div>
+			<button class="button" onclick={process}> Process GS </button>
+		</div>
+		<div>
+			<button class="button" onclick={() => gs && console.log($state.snapshot(gs.debug_info))}> LOG DebugInfo </button>
+		</div>
 	</div>
 </div>
 <div id="timeline">

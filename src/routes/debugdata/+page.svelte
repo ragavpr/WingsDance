@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { GameState, parseMessage, fileCalcDistribution } from '$lib/StateManager.svelte';
+	import { GameState, fileCalcDistribution } from '$lib/StateManager.svelte';
 	import { Buffer } from 'buffer';
 	import { JSONEditor, SelectionType, Mode } from 'svelte-jsoneditor';
 	import type { Content, JSONContent, JSONEditorSelection } from 'svelte-jsoneditor';
@@ -62,7 +62,7 @@
 	async function view_msg(selection?: JSONEditorSelection) {
 		if (selection && selection.type == SelectionType.value) {
 			const index = parseInt(selection.path[0]);
-			content_msg = { json: parseMessage(file!, content_list.json[index].pt) };
+			content_msg = { json: gs!.parseMessage(content_list.json[index].pt) };
 			// await editor.refresh();
 			// await editor.update(content_msg);
 			await delay(0);
