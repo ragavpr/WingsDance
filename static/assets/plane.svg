@@ -2,14 +2,36 @@
 <!-- Created with Inkscape (http://www.inkscape.org/) -->
 
 <svg
-   width="48"
-   height="32"
-   viewBox="0 0 48 32"
+   width="36"
+   height="24"
+   viewBox="0 0 36 24"
    version="1.1"
    id="svg1"
+   sodipodi:docname="plane.svg"
+   inkscape:version="1.4 (e7c3feb100, 2024-10-09)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
    xmlns:xlink="http://www.w3.org/1999/xlink"
    xmlns="http://www.w3.org/2000/svg"
    xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview1"
+     pagecolor="#505050"
+     bordercolor="#ffffff"
+     borderopacity="1"
+     inkscape:showpageshadow="0"
+     inkscape:pageopacity="0"
+     inkscape:pagecheckerboard="1"
+     inkscape:deskcolor="#505050"
+     inkscape:zoom="4.0437689"
+     inkscape:cx="9.026233"
+     inkscape:cy="20.154466"
+     inkscape:window-width="1920"
+     inkscape:window-height="1020"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="layer1" />
   <defs
      id="defs1">
     <linearGradient
@@ -31,7 +53,7 @@
          id="stop1" />
       <stop
          style="stop-color:#ffffff;stop-opacity:1;"
-         offset="0.60760605"
+         offset="0.48714235"
          id="stop3" />
       <stop
          style="stop-color:#999999;stop-opacity:0.5;"
@@ -41,28 +63,30 @@
     <linearGradient
        xlink:href="#linearGradient5"
        id="linearGradient6"
-       x1="-2.3097408"
-       y1="16.00001"
-       x2="49.707302"
-       y2="16.00001"
+       x1="-4.9063287"
+       y1="12.013508"
+       x2="34.585384"
+       y2="12.013508"
        gradientUnits="userSpaceOnUse"
-       gradientTransform="matrix(1.1014663,0,0,1.1867949,-2.741833,-2.9887304)" />
+       gradientTransform="matrix(1.5478137,0,0,1.7023301,-4.185377,-4.4280823)" />
     <radialGradient
        xlink:href="#linearGradient1"
        id="radialGradient6"
-       cx="48.044422"
-       cy="16.00001"
-       fx="48.044422"
-       fy="16.00001"
+       cx="52.03093"
+       cy="10.711122"
+       fx="52.03093"
+       fy="10.711122"
        r="26.008524"
-       gradientTransform="matrix(0,-1.1867949,2.8029859,0,5.3296791,73.018874)"
+       gradientTransform="matrix(0,-1.7023301,3.2624227,0,14.402149,104.59669)"
        gradientUnits="userSpaceOnUse" />
   </defs>
   <g
-     id="layer1">
+     id="layer1"
+     transform="matrix(0.71162716,0,0,0.6971591,0.9326342,0.84551882)"
+     style="stroke-width:1.41973">
     <path
        id="rect1"
-       style="fill:url(#radialGradient6);stroke:url(#linearGradient6);stroke-width:6.86;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none;stroke-opacity:1;paint-order:markers stroke fill"
+       style="fill:url(#radialGradient6);stroke:url(#linearGradient6);stroke-width:9.7394;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none;stroke-opacity:1;paint-order:markers stroke fill"
        d="M 1.9329278,0.51361244 C 9.5466608,2.5501259 37.450639,10.143864 45.692852,14.215212 c 1.444365,0.713462 1.444062,2.856326 -7.15e-4,3.56993 C 37.448747,21.856713 9.5445575,29.450445 1.9321571,31.486594 0.86552389,31.771894 0.40044869,31.199103 0.89442719,30.211146 L 7.1055728,17.788854 a 4,4 90 0 0 0,-3.577708 L 0.89442719,1.7888544 C 0.40044869,0.80089739 0.86586923,0.22819673 1.9329278,0.51361244 Z"
        transform="matrix(0.90788068,0,0,0.84260557,2.4892573,2.5183215)" />
   </g>
