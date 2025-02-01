@@ -15,15 +15,15 @@ export class Debug extends Scene {
 		this.background = this.add.image(0, 0, 'debuggrid').setOrigin(0, 0);
 		this.plane = this.add.sprite(10, 10, 'plane').setOrigin(0, 0).setTint(0xffff00);
 
-		this.tween = this.tweens.addCounter({
-			from: 0,
-			to: 360,
-			duration: 1000,
-			loop: -1,
-			onUpdate: () => {
-				this.plane.setAngle(this.tween!.getValue());
-			}
-		});
+		// this.tween = this.tweens.addCounter({
+		// 	from: 0,
+		// 	to: 360,
+		// 	duration: 1000,
+		// 	loop: -1,
+		// 	onUpdate: () => {
+		// 		this.plane.setAngle(this.tween!.getValue());
+		// 	}
+		// });
 	}
 
 	// changeScene ()

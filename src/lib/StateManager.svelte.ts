@@ -8,6 +8,12 @@ import { browser } from '$app/environment';
 import { LRUCache } from 'lru-cache';
 import * as T from '$lib/ReWings/lib/types'
 
+// function readonlyProxy<T>(obj: T) {
+// 	return new Proxy(obj as object, {
+// 		set: () => {throw new Error("Cannot modify readonly object")}
+// 	}) as T
+// }
+
 function clamp(min: number, max: number, value: number) {
 	return Math.min(max, Math.max(min, value));
 }
@@ -240,7 +246,11 @@ export class GameState {
 			) == 0;
 	}
 
-	getNearestKeyframe(time: number) {
+	getNearestKeyframe(time: number, server_perspective = false) {
+		if(server_perspective) {
+			return clamp(0, this.#keyframes.length - 1, Math.floor((time - this.#keyframes[0].time)/this.#keyframes_mean))
+		}
+
 		const test_correct = (time: number, index: number) => {
 			return (
 				this.#keyframes[index].time <= time &&
@@ -266,19 +276,31 @@ export class GameState {
 		return index;
 	}
 
-	getPlanes(time: number) {
-		const start_i = this.getNearestKeyframe(time);
-		const state = this.parseMessage<T.StateUpdate>(this.#keyframes[start_i].pt);
+	getPlanes(time: number, server_perspective = true) {
+		const start_i = this.getNearestKeyframe(time, server_perspective);
+		const state = structuredClone(this.parseMessage<T.StateUpdate>(this.#keyframes[start_i].pt));
 		const next_state = this.parseMessage<T.StateUpdate>(this.#keyframes[start_i + 1].pt);
-		const events = this.#keyframes[start_i + 1].sub_events;
 
-		const ratio = (time - state.__time) / (next_state.__time - state.__time)
+		const state_time = server_perspective ? start_i * this.#keyframes_mean + this.#keyframes[0].time : state.__time
+		const next_state_time = server_perspective ? state_time + this.#keyframes_mean : next_state.__time 
 		
+		const ratio = (time - state_time) / (next_state_time - state_time)
+		if (ratio < 0) return []
+
+		const events = this.#keyframes[start_i + 1].sub_events;
 		const current_ids = Object.keys(state.planes!).map(i => parseInt(i));
 		const next_ids = Object.values(next_state.planes!).filter(i => i.state.is_active).map(i => parseInt(i.id));
-		
+
 		const joined_ids: number[] = []
 		const left_ids: number[] = []
+
+		const interpolatePlanes = (p1: T.Plane, p2: T.Plane, ratio: number, clone?: 1 | 2) => {
+			const p = clone == 1 ? structuredClone(p1) : clone == 2 ? structuredClone(p2) : p1
+			p.x_gu = interpolate(p1.x_gu!, p2.x_gu!, ratio)
+			p.y_gu = interpolate(p1.y_gu!, p2.y_gu!, ratio)
+			p.angle = interpolate(p1.angle!, p2.angle!, ratio)
+			if(clone) return p
+		}
 
 		events?.player_join?.forEach((event) => {
 			// 0xA4 - Other players
@@ -286,13 +308,10 @@ export class GameState {
 			Object.values(event_msg.planes!).forEach((plane) => {
 				joined_ids.push(plane.id)
 				if(event.time <= time) {
-					const ratio = (time - event.time) / (next_state.__time - event.time)
-					state.planes![plane.id] = structuredClone(next_state.planes![plane.id])
-					state.planes![plane.id].x_gu = interpolate(plane.x_gu!, next_state.planes![plane.id].x_gu!, ratio)
-					state.planes![plane.id].y_gu = interpolate(plane.y_gu!, next_state.planes![plane.id].y_gu!, ratio)
-					state.planes![plane.id].angle = interpolate(plane.angle!, next_state.planes![plane.id].angle!, ratio)
+					const ratio = (time - event.time) / (next_state_time - event.time)
+					state.planes![plane.id] = interpolatePlanes(plane, next_state.planes![plane.id], ratio, 2)!
 				} else {
-					if(state.planes![plane.id]?.state.is_active) console.log("WAHT");
+					if(state.planes![plane.id]?.state.is_active) console.error("UNEXPECTED entity state");
 				}
 			})
 		})
@@ -303,28 +322,34 @@ export class GameState {
 			const event_msg = this.parseMessage<T.EventMCPlayerJoin>(event.pt)
 			joined_ids.push(event_msg.id)
 			if(event.time <= time) {
-				const ratio = (time - event.time) / (next_state.__time - event.time)
-				state.planes![event_msg.id] = structuredClone(next_state.planes![event_msg.id])
-				state.planes![event_msg.id].x_gu = interpolate(event_msg.x_gu, next_state.planes![event_msg.id].x_gu!, ratio)
-				state.planes![event_msg.id].y_gu = interpolate(event_msg.y_gu, next_state.planes![event_msg.id].y_gu!, ratio)
-				state.planes![event_msg.id].angle = interpolate(event_msg.angle, next_state.planes![event_msg.id].angle!, ratio)
+				const ratio = (time - event.time) / (next_state_time - event.time)
+				state.planes![event_msg.id] = interpolatePlanes(event_msg as T.Plane, next_state.planes![event_msg.id], ratio, 2)!
 			} else {
-				if(state.planes![event_msg.id]?.state.is_active) console.log("WAHT");
+				if(state.planes![event_msg.id]?.state.is_active) console.error("UNEXPECTED entity state");
 			}
 		})
 
-		events?.despawn?.forEach((event) => {
-			// 0xA5 - despawn messages
-			const event_msg = this.parseMessage<T.EventDespawn>(event.pt)
-			left_ids.push(event_msg.id_victim)
-			if(time >= event.time) state.planes![event_msg.id_victim] = next_state.planes![event_msg.id_victim]
-		})
+		if(events?.despawn) {
+			const prev_state = this.parseMessage<T.StateUpdate>(this.#keyframes[start_i > 0 ? start_i-1 : 0].pt);
+			const prev_state_time = server_perspective ? state_time - this.#keyframes_mean : prev_state.__time 
+			events?.despawn?.forEach((event) => {
+				// 0xA5 - despawn messages
+				const event_msg = this.parseMessage<T.EventDespawn>(event.pt)
+				left_ids.push(event_msg.id_victim)
+				if(event.time <= time) {
+					state.planes![event_msg.id_victim] = next_state.planes![event_msg.id_victim]
+				}
+				else {
+					const ratio = (time - prev_state_time) / (state_time - prev_state_time)
+					console.log(ratio, prev_state.planes![event_msg.id_victim].y_gu!, prev_state.planes![event_msg.id_victim].y_gu!)
+					state.planes![event_msg.id_victim] = interpolatePlanes(prev_state.planes![event_msg.id_victim], state.planes![event_msg.id_victim], ratio, 2)!
+				}
+			})
+		}
 
 		next_ids.forEach(id => {
 			if(state.planes![id] && next_state.planes![id]) {
-				state.planes![id].x_gu = interpolate(state.planes![id].x_gu!, next_state.planes![id].x_gu!, ratio)
-				state.planes![id].y_gu = interpolate(state.planes![id].y_gu!, next_state.planes![id].y_gu!, ratio)
-				state.planes![id].angle = interpolate(state.planes![id].angle!, next_state.planes![id].angle!, ratio)
+				interpolatePlanes(state.planes![id], next_state.planes![id], ratio)
 			}
 		})
 
@@ -338,12 +363,13 @@ export class GameState {
 		// 	// differenceA: _.difference(current_ids, next_ids),
 		// 	// differenceB: _.difference(next_ids, current_ids)
 		// }
-		return structuredClone(state.planes)
+		// this.debug_info = start_i	
+		return state.planes
 	}
 
 	parseMessage<T>(pt: number): T.Parsed<T> {
 		const cached = this.data_cache.get(pt);
-		if (cached) return structuredClone(cached) as T.Parsed<T>;
+		if (cached) return cached as T.Parsed<T>;
 		// console.log("CACHE MISS")
 		const time = this.data.readUInt32BE(pt);
 		const dir = this.data.readUInt8(pt + 4);
@@ -364,7 +390,7 @@ export class GameState {
 		result.__time = time;
 		result.__dir = dir;
 		this.data_cache.set(pt, result);
-		return structuredClone(result);
+		return result;
 	}
 }
 
